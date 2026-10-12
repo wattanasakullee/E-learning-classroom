@@ -292,3 +292,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: .9rem; }
 .sc-row > span:last-child { grid-area: f; }
 .linkbtn { font: inherit; font-size: .85rem; background: none; border: 0; color: var(--brand); cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 3px; }
 .linkbtn:disabled { opacity: .5; }
+/* ช่องติ๊กกับข้อความยาว ให้อยู่บรรทัดเดียวกัน */
+label.row { flex-wrap: nowrap; align-items: flex-start; }
+label.row > input[type=checkbox] { margin-top: 5px; flex: none; width: 18px; height: 18px; accent-color: var(--brand); }
+label.row > span { flex: 1; min-width: 0; }

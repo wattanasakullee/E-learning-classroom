@@ -40,8 +40,8 @@ function shell(active, inner) {
     <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-4.5L21 9l-9 4.5z"/><path d="M7 11v4.5c0 1 2.2 2.5 5 2.5s5-1.5 5-2.5V11"/></svg></div>
     <div><div class="brand-name">${esc(CONFIG.schoolName)} · ${isAdm() ? "ผู้ดูแลระบบ" : "ครูผู้สอน"}</div><div class="brand-sub">ห้องเรียนออนไลน์ ↔ ITW51</div></div>
     <div class="spacer"></div>
-    <div class="user"><div>${esc(isAdm() ? user.email : me?.name || "")}</div>${!isAdm() && me?.allGroups ? `<div style="opacity:.7">ดูได้ทุกกลุ่ม</div>` : !isAdm() && me?.groups?.length ? `<div style="opacity:.7">กลุ่ม ${esc(me.groups.join(", "))}</div>` : ""}</div>
-    ${!isAdm() && !me?.pwChanged ? `<button class="btn ghost sm" id="chPw">เปลี่ยนรหัสผ่าน</button>` : ""}
+    <div class="user"><div>${esc(me?.name || user.email)}</div>${!isAdm() && me?.allGroups ? `<div style="opacity:.7">ดูได้ทุกกลุ่ม</div>` : !isAdm() && me?.groups?.length ? `<div style="opacity:.7">กลุ่ม ${esc(me.groups.join(", "))}</div>` : ""}</div>
+    ${me && !me.pwChanged ? `<button class="btn ghost sm" id="chPw">เปลี่ยนรหัสผ่าน</button>` : ""}
     ${isDemo ? "" : `<a class="btn ghost sm" href="index.html" target="_blank">หน้านักศึกษา</a>`}
     <button class="btn ghost sm" id="logout">ออก</button>
   </div></header>
@@ -793,7 +793,8 @@ async function pageStudents() {
 // =================================================================== TEACHERS (ผู้ดูแลเท่านั้น)
 async function pageTeachers() {
   app.innerHTML = shell("teachers", `<div class="row between"><h1>ครูผู้สอน</h1><div class="row"><button class="btn" id="impT">นำเข้าจากไฟล์ Excel</button><button class="btn primary" id="addT">+ เพิ่มครู</button></div></div>
-    <p class="muted">ครูเข้าระบบที่หน้านี้ (admin.html) ด้วย <b>ชื่อ-สกุล</b> + <b>เบอร์โทร</b> · เพิ่ม/แก้ไขบทเรียนได้ทุกวิชา · เห็นนักศึกษาเฉพาะกลุ่มที่กำหนด ·
+    <p class="muted">ให้สิทธิ์ admin: กด <b>แก้ไข</b> ที่ชื่อครู → ติ๊ก <b>ผู้ดูแลระบบ (admin)</b> ·
+    ครูเข้าระบบที่หน้านี้ (admin.html) ด้วย <b>ชื่อ-สกุล</b> + <b>เบอร์โทร</b> · เพิ่ม/แก้ไขบทเรียนได้ทุกวิชา · เห็นนักศึกษาเฉพาะกลุ่มที่กำหนด ·
     ไม่มีสิทธิ์ดาวน์โหลดคะแนน ส่งคะแนนเข้า ITW51 หรือจัดการภาคเรียน</p>
     <div id="tl"><div class="loading"><span class="spin"></span></div></div><div id="tsug"></div>`); bindShell();
   const staff = (await store.list("staff")).filter(t => t.role === "teacher").sort((a, b) => a.name.localeCompare(b.name, "th"));
@@ -806,7 +807,7 @@ async function pageTeachers() {
   }
   const allGroups = Object.keys(groupMap).sort();
   $("#tl").innerHTML = staff.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>ชื่อ-สกุล (ชื่อผู้ใช้)</th><th>เบอร์โทร (รหัสผ่านเริ่มต้น)</th><th>E-mail (รับลิงก์ลืมรหัสผ่าน)</th><th>กลุ่มที่ดูแล</th><th>สถานะ</th><th></th></tr></thead><tbody>
-    ${staff.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.phone || "")}${t.pwChanged ? ` <span class="chip" title="ครูเปลี่ยนรหัสผ่านเองแล้ว">เปลี่ยนรหัสแล้ว</span>` : ""}</td><td class="small">${isRealEmail(t.email) ? esc(t.email) : `<span class="muted">ไม่มี</span>`}</td><td>${t.allGroups ? `<span class="chip ok">ทุกกลุ่ม (ผู้บริหาร)</span> ` : ""}${(t.groups || []).map(g => `<span class="chip brand">${esc(g)}</span>`).join(" ") || (t.allGroups ? "" : `<span class="chip warn">ยังไม่กำหนด</span>`)}</td>
+    ${staff.map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.phone || "")}${t.pwChanged ? ` <span class="chip" title="ครูเปลี่ยนรหัสผ่านเองแล้ว">เปลี่ยนรหัสแล้ว</span>` : ""}</td><td class="small">${isRealEmail(t.email) ? esc(t.email) : `<span class="muted">ไม่มี</span>`}</td><td>${t.admin ? `<span class="chip bad">ผู้ดูแลระบบ (admin)</span> ` : ""}${t.allGroups ? `<span class="chip ok">ทุกกลุ่ม (ผู้บริหาร)</span> ` : ""}${(t.groups || []).map(g => `<span class="chip brand">${esc(g)}</span>`).join(" ") || (t.allGroups ? "" : `<span class="chip warn">ยังไม่กำหนด</span>`)}</td>
       <td>${t.active === false ? `<span class="chip bad">ปิดใช้งาน</span>` : `<span class="chip ok">ใช้งาน</span>`}</td>
       <td><div class="row end">${isRealEmail(t.email) ? `<button class="btn sm ghost" data-rs="${esc(t.id)}" title="ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่อีเมลครู">ส่งลิงก์รีเซ็ต</button>` : ""}<button class="btn sm" data-ed="${esc(t.id)}">แก้ไข</button><button class="btn sm ghost" data-tg="${esc(t.id)}">${t.active === false ? "เปิดใช้งาน" : "ปิดใช้งาน"}</button><button class="btn sm ghost danger" data-rm="${esc(t.id)}">ลบ</button></div></td></tr>`).join("")}
     </tbody></table></div>` : `<div class="card"><p class="muted">ยังไม่มีบัญชีครู — กด "+ เพิ่มครู" หรือสร้างจากรายชื่อครูที่ปรึกษาใน ITW51 ด้านล่าง</p></div>`;
@@ -825,22 +826,24 @@ async function pageTeachers() {
   $$("[data-ed]").forEach(b => b.onclick = () => teacherModal(staff.find(t => t.id === b.dataset.ed), allGroups, groupMap));
   $$("[data-tg]").forEach(b => b.onclick = async () => {
     const t = staff.find(x => x.id === b.dataset.tg);
+    if (t.id === user.uid) { toast("ปิดใช้งานบัญชีของตัวเองไม่ได้", "bad"); return; }
     await store.set("staff/" + t.id, { active: t.active === false }, true); toast(t.active === false ? "เปิดใช้งานแล้ว" : "ปิดใช้งานแล้ว", "ok"); pageTeachers();
   });
   $$("[data-rm]").forEach(b => b.onclick = async () => {
     const t = staff.find(x => x.id === b.dataset.rm);
+    if (t.id === user.uid) { toast("ลบบัญชีของตัวเองไม่ได้", "bad"); return; }
     if (!(await confirmBox(`ลบบัญชีครู ${t.name}? ครูคนนี้จะเข้าระบบไม่ได้อีก (บทเรียนที่สร้างไว้ยังอยู่)`, "ลบบัญชี"))) return;
     await store.batch([{ type: "del", path: "staff/" + t.id }, { type: "del", path: "teacherLogin/" + t.nameKey }]);
     toast("ลบบัญชีแล้ว", "ok"); pageTeachers();
   });
 }
 
-async function createTeacher({ name, phone, groups, email, allGroups }) {
+async function createTeacher({ name, phone, groups, email, allGroups, admin }) {
   name = String(name || "").trim().replace(/\s+/g, " "); phone = normPhone(phone); email = String(email || "").trim().toLowerCase();
   if (!normName(name)) throw new Error("กรอกชื่อ-สกุล");
   if (phone.length < 9) throw new Error("เบอร์โทรต้องมีอย่างน้อย 9 หลัก");
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error(`อีเมล "${email}" ไม่ถูกต้อง`);
-  if (email && CONFIG.adminEmails.map(x => x.toLowerCase()).includes(email)) throw new Error(`${email} เป็นอีเมลผู้ดูแลระบบอยู่แล้ว (เข้าระบบแท็บผู้ดูแล)`);
+  if (email && CONFIG.adminEmails.map(x => x.toLowerCase()).includes(email)) throw new Error(`${email} เป็นอีเมลเจ้าของระบบอยู่แล้ว (เข้าระบบแท็บผู้ดูแล)`);
   const key = await teacherKey(name);
   if (await store.get("teacherLogin/" + key)) throw new Error(`มีครูชื่อ "${name}" อยู่แล้ว`);
   // ใช้อีเมลจริงเป็นบัญชีเข้าระบบ เพื่อให้ส่งลิงก์ตั้งรหัสผ่านใหม่ได้ (ถ้าไม่มีอีเมล ใช้อีเมลภายในระบบแทน)
@@ -849,7 +852,7 @@ async function createTeacher({ name, phone, groups, email, allGroups }) {
   try { uid = await store.admin.createUser(loginEmail, phone); }
   catch (e) { if (e.code === "auth/email-already-in-use") throw new Error(`อีเมล ${email} มีบัญชีในระบบอยู่แล้ว`); throw e; }
   await store.batch([
-    { type: "set", path: "staff/" + uid, data: { name, nameKey: key, email: loginEmail, phone, groups: groups || [], allGroups: !!allGroups, role: "teacher", active: true, pwChanged: false, createdAt: store.serverTime(), createdBy: user.email } },
+    { type: "set", path: "staff/" + uid, data: { name, nameKey: key, email: loginEmail, phone, groups: groups || [], allGroups: !!allGroups, admin: !!admin, role: "teacher", active: true, pwChanged: false, createdAt: store.serverTime(), createdBy: user.email } },
     { type: "set", path: "teacherLogin/" + key, data: { email: loginEmail } },
   ]);
   return uid;
@@ -937,7 +940,7 @@ function importTeachersModal(staff, groupMap) {
     const inFile = new Set(rows.map(r => r.old?.id).filter(Boolean));
     const missing = staff.filter(t => !inFile.has(t.id) && t.active !== false);
     const nNew = rows.filter(r => r.st === "new").length, nUpd = rows.filter(r => r.st === "update").length;
-    const label = { new: `<span class="chip ok">สร้างใหม่</span>`, have: `<span class="chip">มีบัญชีแล้ว</span>`, update: `<span class="chip warn">ปรับปรุง</span>`, admin: `<span class="chip brand">ผู้ดูแลระบบ</span>`, nophone: `<span class="chip bad">ไม่มีเบอร์โทร</span>` };
+    const label = { new: `<span class="chip ok">สร้างใหม่</span>`, have: `<span class="chip">มีบัญชีแล้ว</span>`, update: `<span class="chip warn">ปรับปรุง</span>`, admin: `<span class="chip brand">เจ้าของระบบ</span>`, nophone: `<span class="chip bad">ไม่มีเบอร์โทร</span>` };
     $("#xp", d).innerHTML = `<p class="small">ชีต "${esc(data.sheet)}" · ${rows.length} คน · สร้างใหม่ <b>${nNew}</b> คน · ปรับปรุง <b>${nUpd}</b> คน · มีกลุ่มที่ดูแล ${rows.filter(r => r.groups.length).length} คน</p>
       <div class="tbl-wrap" style="max-height:380px;overflow:auto"><table class="tbl"><thead><tr><th>ชื่อ-สกุล</th><th>เบอร์โทร</th><th>E-mail</th><th>กลุ่มที่ดูแล (จาก ITW51)</th><th title="ผู้บริหาร เช่น ผอ. ดูนักศึกษาได้ทุกกลุ่ม">ดูทุกกลุ่ม</th><th>สถานะ</th></tr></thead><tbody>
       ${rows.map((r, i) => `<tr><td>${esc(r.name)}</td><td>${esc(r.phone)}</td><td class="small">${esc(r.email) || `<span class="muted">—</span>`}</td><td>${r.groups.map(g => `<span class="chip">${esc(g)}</span>`).join(" ") || `<span class="muted small">ไม่มีใน ITW51</span>`}${r.note ? `<div class="small" style="color:var(--warn)">${esc(r.note)}</div>` : ""}</td>
@@ -990,6 +993,8 @@ function teacherModal(t, allGroups, groupMap) {
       <div><label class="f" for="tp">เบอร์โทร (ใช้เป็นรหัสผ่านเริ่มต้น)</label><input type="text" id="tp" inputmode="numeric" required value="${esc(t?.phone || "")}" placeholder="0812345678"></div></div>
     <div><label class="f" for="tm">E-mail (ใช้รับลิงก์เมื่อลืมรหัสผ่าน)</label><input type="email" id="tm" value="${esc(t && isRealEmail(t.email) ? t.email : "")}" ${t ? "disabled" : ""} placeholder="name@gmail.com"></div>
     ${t ? `<p class="hint">${isRealEmail(t.email) ? "อีเมลเปลี่ยนไม่ได้ (เป็นบัญชีเข้าระบบ) · ครูลืมรหัสผ่าน: กดปุ่ม \"ส่งลิงก์รีเซ็ต\" หรือให้ครูกด \"ลืมรหัสผ่าน?\" ที่หน้าเข้าสู่ระบบ" : "บัญชีนี้ไม่มีอีเมล — ถ้าเปลี่ยนเบอร์โทร รหัสผ่านของครูจะถูกตั้งใหม่เป็นเบอร์นี้"}</p>` : ""}
+    <label class="row small" style="background:var(--bad-soft);padding:10px 12px;border-radius:10px"><input type="checkbox" id="tadm" ${t?.admin ? "checked" : ""}>
+      <span><b>ผู้ดูแลระบบ (admin)</b> — ดาวน์โหลดคะแนน ส่งคะแนนเข้า ITW51 จัดการภาคเรียน จัดการบัญชีครูและสิทธิ์ admin (ควรมี 3–4 คน)</span></label>
     <label class="row small" style="background:var(--surface-2);padding:10px 12px;border-radius:10px"><input type="checkbox" id="tall" ${t?.allGroups ? "checked" : ""}>
       <span><b>ดูนักศึกษาและคะแนนได้ทุกกลุ่ม</b> (สำหรับผู้บริหาร เช่น ผอ.) — ยังไม่มีสิทธิ์ดาวน์โหลดคะแนนหรือจัดการระบบ</span></label>
     <div><label class="f">กลุ่มที่ดูแล (เห็นเฉพาะนักศึกษาในกลุ่มเหล่านี้)</label>
@@ -1012,10 +1017,12 @@ function teacherModal(t, allGroups, groupMap) {
   $("[data-x]", d).onclick = () => d.remove();
   $("form", d).onsubmit = async e => {
     e.preventDefault();
-    const name = $("#tn", d).value.trim(), phone = normPhone($("#tp", d).value), groups = [...sel].sort(), allGroups = $("#tall", d).checked;
+    const name = $("#tn", d).value.trim(), phone = normPhone($("#tp", d).value), groups = [...sel].sort(), allGroups = $("#tall", d).checked, admin = $("#tadm", d).checked;
+    if (t && t.admin && !admin && t.id === user.uid && !(await confirmBox("ถอนสิทธิ์ admin ของตัวเอง? คุณจะใช้เมนูผู้ดูแลไม่ได้อีก", "ถอนสิทธิ์"))) return;
+    if (admin && !t?.admin && !(await confirmBox(`ให้สิทธิ์ผู้ดูแลระบบ (admin) แก่ ${name}?`, "ให้สิทธิ์"))) return;
     $("#tsave", d).disabled = true;
     try {
-      if (!t) await createTeacher({ name, phone, groups, allGroups, email: $("#tm", d).value });
+      if (!t) await createTeacher({ name, phone, groups, allGroups, admin, email: $("#tm", d).value });
       else {
         const nameChanged = normName(name) !== normName(t.name), phoneChanged = phone !== normPhone(t.phone);
         if (phone.length < 9) throw new Error("เบอร์โทรต้องมีอย่างน้อย 9 หลัก");
@@ -1024,7 +1031,7 @@ function teacherModal(t, allGroups, groupMap) {
         if (phoneChanged && isRealEmail(t.email)) {
           // บัญชีที่ใช้อีเมลจริง: เก็บเบอร์ใหม่ไว้อ้างอิง รหัสผ่านเปลี่ยนผ่านลิงก์ทางอีเมลเท่านั้น
           await store.batch([
-            { type: "set", path: "staff/" + t.id, data: { name, nameKey: key, phone, groups, allGroups, updatedAt: store.serverTime() }, merge: true },
+            { type: "set", path: "staff/" + t.id, data: { name, nameKey: key, phone, groups, allGroups, admin, updatedAt: store.serverTime() }, merge: true },
             ...(nameChanged ? [{ type: "del", path: "teacherLogin/" + t.nameKey }, { type: "set", path: "teacherLogin/" + key, data: { email: t.email } }] : []),
           ]);
         } else if (phoneChanged) {
@@ -1033,14 +1040,14 @@ function teacherModal(t, allGroups, groupMap) {
           const uid = await store.admin.createUser(email, phone);
           const { id, ...rest } = t;
           await store.batch([
-            { type: "set", path: "staff/" + uid, data: { ...rest, name, nameKey: key, email, phone, groups, allGroups, updatedAt: store.serverTime() } },
+            { type: "set", path: "staff/" + uid, data: { ...rest, name, nameKey: key, email, phone, groups, allGroups, admin, updatedAt: store.serverTime() } },
             { type: "del", path: "staff/" + t.id },
             ...(nameChanged ? [{ type: "del", path: "teacherLogin/" + t.nameKey }] : []),
             { type: "set", path: "teacherLogin/" + key, data: { email } },
           ]);
         } else {
           await store.batch([
-            { type: "set", path: "staff/" + t.id, data: { name, nameKey: key, groups, allGroups, updatedAt: store.serverTime() }, merge: true },
+            { type: "set", path: "staff/" + t.id, data: { name, nameKey: key, groups, allGroups, admin, updatedAt: store.serverTime() }, merge: true },
             ...(nameChanged ? [{ type: "del", path: "teacherLogin/" + t.nameKey }, { type: "set", path: "teacherLogin/" + key, data: { email: t.email } }] : []),
           ]);
         }
@@ -1518,6 +1525,7 @@ async function route() {
       const adminEmail = CONFIG.adminEmails.map(x => x.toLowerCase()).includes(String(u.email).toLowerCase());
       const staffDoc = adminEmail ? null : await store.get("staff/" + u.uid).catch(() => null);
       if (adminEmail || (isDemo && !staffDoc)) role = "admin";
+      else if (staffDoc && staffDoc.admin === true && staffDoc.active !== false) { role = "admin"; me = staffDoc; }
       else {
         me = staffDoc;
         if (me && me.active !== false && me.role === "teacher") role = "teacher";
