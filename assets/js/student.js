@@ -7,7 +7,8 @@ const ICON_CAP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const SKEY = "itw51:session";
 const app = $("#app");
 const LS = safeStorage("local"), SS = safeStorage("session");
-let store, login, settings, activePlayer, activeRun;
+let store, login, settings, activePlayer, activeRun, activeTimer;
+const stopTimer = () => { if (activeTimer) { clearInterval(activeTimer); activeTimer = null; } };
 
 function getSession() {
   try { return JSON.parse(LS.get(SKEY) || SS.get(SKEY) || "null"); } catch { return null; }
@@ -226,10 +227,26 @@ async function renderCourse(cid, tab) {
     };
     drawDots();
     const vbox = $("#vbox");
-    $("#fsBtn").onclick = () => {
-      if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-      else (vbox.requestFullscreen || vbox.webkitRequestFullscreen)?.call(vbox);
+    // เต็มจอ: ขยายกล่องวิดีโอเต็มหน้าจอ (ใช้ได้ทุกเครื่อง รวม iPhone) + เต็มจอจริงและหมุนแนวนอน ถ้าเครื่องรองรับ
+    const exitBtn = document.createElement("button");
+    exitBtn.type = "button"; exitBtn.className = "fs-exit"; exitBtn.textContent = "✕ ออกจากเต็มจอ";
+    vbox.appendChild(exitBtn);
+    const isFs = () => vbox.classList.contains("pseudo-fs");
+    const enterFs = async () => {
+      vbox.classList.add("pseudo-fs"); document.body.classList.add("no-scroll");
+      try { const req = vbox.requestFullscreen || vbox.webkitRequestFullscreen; if (req) await req.call(vbox); } catch {}
+      try { await screen.orientation?.lock?.("landscape"); } catch {}
     };
+    const exitFs = async () => {
+      vbox.classList.remove("pseudo-fs"); document.body.classList.remove("no-scroll");
+      try { screen.orientation?.unlock?.(); } catch {}
+      try { if (document.fullscreenElement || document.webkitFullscreenElement) await (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch {}
+    };
+    $("#fsBtn").onclick = () => (isFs() ? exitFs() : enterFs());
+    exitBtn.onclick = exitFs;
+    const onFsChange = () => { if (!document.fullscreenElement && !document.webkitFullscreenElement && isFs() && fsWasReal) exitFs(); fsWasReal = !!(document.fullscreenElement || document.webkitFullscreenElement); };
+    let fsWasReal = false;
+    document.addEventListener("fullscreenchange", onFsChange); document.addEventListener("webkitfullscreenchange", onFsChange);
     try { activePlayer = await createPlayer($("#vhost"), course.video.url); }
     catch (e) { $("#vhost").innerHTML = `<div class="notice bad" style="margin:20px">${esc(e.message)}</div>`; return; }
     const ask = q => new Promise(resolve => {
@@ -294,34 +311,73 @@ async function renderCourse(cid, tab) {
       pane.innerHTML = `<div class="notice ok-notice">✓ ส่งแบบทดสอบเรียบร้อยแล้ว เมื่อ ${new Date(res.quizAt).toLocaleString("th-TH")}</div>${scoreCard()}`;
       return;
     }
+    const limitMin = Number(course.quiz?.timeLimit) || 0;
+    // จับเวลา: ต้องกด "เริ่มทำแบบทดสอบ" ก่อน (บันทึกเวลาเริ่มไว้ในระบบ รีเฟรชแล้วเวลาไม่รีเซ็ต)
+    if (limitMin && !res.quizStartAt) {
+      pane.innerHTML = `<div class="card result-box">
+        <h2 style="justify-content:center">${esc(course.quiz.title || "แบบทดสอบ")}</h2>
+        <p>${qs.length} ข้อ · คิดเป็น ${CONFIG.quizFull} คะแนน · ส่งได้ครั้งเดียว</p>
+        <div class="big" style="font-size:2.2rem">⏱ ${limitMin} นาที</div>
+        <p class="muted small" style="margin-top:10px">เมื่อกดเริ่ม ระบบจะนับเวลาถอยหลัง และ<b>ส่งคำตอบอัตโนมัติเมื่อหมดเวลา</b><br>ถ้าทำเสร็จก่อน กดส่งเองได้ · ออกจากหน้านี้แล้วเวลายังเดินต่อ</p>
+        <button class="btn primary" id="qstart" style="margin-top:8px">เริ่มทำแบบทดสอบ</button></div>`;
+      $("#qstart").onclick = async () => {
+        if (!(await confirmBox(`เริ่มทำแบบทดสอบ? มีเวลา ${limitMin} นาที`, "เริ่มเลย"))) return;
+        $("#qstart").disabled = true;
+        try { const t0 = Date.now(); await save({ quizStartAt: store.serverTime() }); SS.set("quizskew:" + rid, String(new Date(res.quizStartAt).getTime() - t0)); drawQuiz(); }
+        catch (err) { console.error(err); toast("เริ่มไม่สำเร็จ ลองอีกครั้ง", "bad"); $("#qstart").disabled = false; }
+      };
+      return;
+    }
     const draft = (() => { try { return JSON.parse(SS.get("quizdraft:" + rid) || "{}"); } catch { return {}; } })();
     pane.innerHTML = `<div class="card">
+      ${limitMin ? `<div class="quiz-timer" id="qtimer" role="timer" aria-live="off"><span>⏱ เวลาที่เหลือ</span><b id="qtleft">--:--</b></div>` : ""}
       <h2><span class="num-badge">3</span>${esc(course.quiz.title || "แบบทดสอบ")}</h2>
-      <p class="small muted">${qs.length} ข้อ · คิดเป็น ${CONFIG.quizFull} คะแนน · ส่งได้ครั้งเดียว</p>
+      <p class="small muted">${qs.length} ข้อ · คิดเป็น ${CONFIG.quizFull} คะแนน · ส่งได้ครั้งเดียว${limitMin ? ` · เวลา ${limitMin} นาที ส่งอัตโนมัติเมื่อหมดเวลา` : ""}</p>
       <form id="qf">${qs.map((q, i) => `<div class="quiz-q"><div class="qn">${i + 1}. ${esc(q.text)}</div>
         <div class="choices">${q.choices.map((c, j) => `<label class="choice ${draft[q.id] === j ? "sel" : ""}"><input type="radio" name="${q.id}" value="${j}" ${draft[q.id] === j ? "checked" : ""}><span>${esc(c)}</span></label>`).join("")}</div></div>`).join("")}
       <div class="row between" style="margin-top:14px"><span class="muted small" id="qcount"></span><button class="btn primary" id="qsend">ส่งคำตอบ</button></div></form></div>`;
     const count = () => { const n = qs.filter(q => $(`input[name="${q.id}"]:checked`)).length; $("#qcount").textContent = `ตอบแล้ว ${n}/${qs.length} ข้อ`; return n; };
     count();
+    const answers = () => { const d = {}; qs.forEach(q => { const c = $(`input[name="${q.id}"]:checked`); if (c) d[q.id] = Number(c.value); }); return d; };
     $$(".choice", pane).forEach(l => l.addEventListener("change", () => {
       $$(`.choice input[name="${l.querySelector("input").name}"]`).forEach(i => i.closest(".choice").classList.toggle("sel", i.checked));
-      const d = {}; qs.forEach(q => { const c = $(`input[name="${q.id}"]:checked`); if (c) d[q.id] = Number(c.value); });
-      SS.set("quizdraft:" + rid, JSON.stringify(d)); count();
+      SS.set("quizdraft:" + rid, JSON.stringify(answers())); count();
     }));
+    let sending = false;
+    const submit = async (auto) => {
+      if (sending || res.quizAt) return;
+      sending = true; stopTimer();
+      $("#qsend").disabled = true; $("#qsend").innerHTML = `<span class="spin"></span> กำลังตรวจคำตอบ`;
+      $$("#qf input").forEach(i => i.disabled = true);
+      try {
+        await save({ quiz: answers(), quizAt: store.serverTime() }); SS.remove("quizdraft:" + rid);
+        await ensureCounts(); toast(auto ? "หมดเวลา ระบบส่งคำตอบให้แล้ว" : "ส่งคำตอบเรียบร้อย", "ok"); draw(); scrollTo(0, 0);
+      } catch (err) {
+        console.error(err); sending = false;
+        toast("ส่งไม่สำเร็จ: " + err.message + (auto ? " — ตรวจอินเทอร์เน็ตแล้วกดส่งอีกครั้ง" : ""), "bad");
+        $("#qsend").disabled = false; $("#qsend").textContent = "ส่งคำตอบ"; $$("#qf input").forEach(i => i.disabled = false);
+      }
+    };
     $("#qf").onsubmit = async e => {
       e.preventDefault();
       const n = count();
       const ok = await confirmBox(n < qs.length ? `ยังตอบไม่ครบ (${n}/${qs.length} ข้อ) ต้องการส่งเลยหรือไม่? ส่งแล้วแก้ไขไม่ได้` : "ยืนยันการส่งคำตอบ? ส่งแล้วแก้ไขไม่ได้", "ส่งคำตอบ");
-      if (!ok) return;
-      const ans = {}; qs.forEach(q => { const c = $(`input[name="${q.id}"]:checked`); if (c) ans[q.id] = Number(c.value); });
-      $("#qsend").disabled = true;
-      try {
-        $("#qsend").innerHTML = `<span class="spin"></span> กำลังตรวจคำตอบ`;
-        await save({ quiz: ans, quizAt: store.serverTime() }); SS.remove("quizdraft:" + rid);
-        await ensureCounts(); toast("ส่งคำตอบเรียบร้อย", "ok"); draw(); scrollTo(0, 0);
-      }
-      catch (err) { console.error(err); toast("ส่งไม่สำเร็จ: " + err.message, "bad"); $("#qsend").disabled = false; }
+      if (ok) submit(false);
     };
+    // นับเวลาถอยหลัง (อ้างอิงเวลาเริ่มที่บันทึกในระบบ)
+    if (limitMin && res.quizStartAt) {
+      const skew = Number(SS.get("quizskew:" + rid) || 0);
+      const end = new Date(res.quizStartAt).getTime() + limitMin * 60000;
+      const tick = () => {
+        const left = Math.max(0, end - (Date.now() + skew));
+        const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000);
+        const el = $("#qtleft"); if (!el) { stopTimer(); return; }
+        el.textContent = `${m}:${String(sec).padStart(2, "0")}`;
+        $("#qtimer").classList.toggle("warn", left <= 60000);
+        if (left <= 0) { el.textContent = "หมดเวลา"; submit(true); }
+      };
+      tick(); activeTimer = setInterval(tick, 500);
+    }
   };
   draw();
 }
@@ -340,6 +396,7 @@ function myScore(course, r) {
 }
 
 function stopVideo() {
+  stopTimer();
   if (activeRun) { activeRun.stop(); activeRun = null; }
   if (activePlayer) { activePlayer.destroy(); activePlayer = null; }
 }

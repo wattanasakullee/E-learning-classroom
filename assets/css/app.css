@@ -296,3 +296,18 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: .9rem; }
 label.row { flex-wrap: nowrap; align-items: flex-start; }
 label.row > input[type=checkbox] { margin-top: 5px; flex: none; width: 18px; height: 18px; accent-color: var(--brand); }
 label.row > span { flex: 1; min-width: 0; }
+
+/* ---------- เต็มจอ (ใช้ได้ทั้ง iPhone และ Android) ---------- */
+.video-box .fs-exit { display: none; }
+.video-box.pseudo-fs { position: fixed; inset: 0; z-index: 200; width: 100vw; height: 100vh; height: 100dvh; max-width: none; aspect-ratio: auto; border-radius: 0; background: #000; }
+.video-box.pseudo-fs .q-overlay { position: absolute; z-index: 5; }
+.video-box.pseudo-fs .fs-exit { display: block; position: absolute; top: calc(env(safe-area-inset-top, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 8px); z-index: 6;
+  font: inherit; font-size: .85rem; background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 99px; padding: 6px 12px; cursor: pointer; }
+body.no-scroll { overflow: hidden; }
+/* ---------- นับเวลาทำแบบทดสอบ ---------- */
+.quiz-timer { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  margin: -4px -4px 14px; padding: 10px 14px; border-radius: 12px; background: var(--brand); color: var(--surface); box-shadow: var(--shadow); }
+.quiz-timer b { font-size: 1.5rem; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.quiz-timer.warn { background: var(--bad); color: #fff; animation: qt-pulse 1s ease-in-out infinite; }
+@keyframes qt-pulse { 50% { opacity: .82; } }
+@media (prefers-reduced-motion: reduce) { .quiz-timer.warn { animation: none; } }

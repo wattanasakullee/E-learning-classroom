@@ -188,3 +188,18 @@ export function joinThaiName(prefix, first, last) {
   if (prefix && PREFIXES.some(p => first.startsWith(p))) prefix = "";
   return `${prefix}${first} ${last}`.trim().replace(/\s+/g, " ");
 }
+
+// ---------- ครูเข้าระบบด้วย "ชื่อ" อย่างเดียว (ไม่ต้องมีนามสกุล) ----------
+export function firstName(name) {
+  let s = String(name || "").trim().replace(/\s+/g, " ");
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const p of PREFIXES) if (s.startsWith(p)) { s = s.slice(p.length).trim(); changed = true; }
+  }
+  return s.split(" ")[0] || "";
+}
+export async function teacherFirstKey(name) {
+  const f = firstName(name).replace(/\./g, "").toLowerCase();
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${CONFIG.keySalt}|TF|${f}`));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}

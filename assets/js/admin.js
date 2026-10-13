@@ -1,7 +1,7 @@
 import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
 import { DBF } from "./dbf.js";
-import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName } from "./common.js";
+import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey } from "./common.js";
 import { createPlayer } from "./player.js";
 
 const app = $("#app");
@@ -30,7 +30,7 @@ const NAV = [
   ["results", "ผลคะแนน", "✓", "all"],
   ["teachers", "ครูผู้สอน", "♟", "admin"],
   ["groups", "กลุ่มเรียน / ครูประจำกลุ่ม", "▦", "admin"],
-  ["export", "ส่งคะแนนเข้า ITW51", "⇪", "admin"],
+  ["export", "ดาวน์โหลดคะแนน (Excel)", "⇪", "admin"],
   ["import", "ภาคเรียน / นำเข้า ITW51", "⇩", "admin"],
 ];
 const ADMIN_PAGES = new Set(NAV.filter(n => n[3] === "admin").map(n => n[0]));
@@ -67,6 +67,39 @@ const courseList = () => Object.entries(roster?.courses || {}).map(([id, c]) => 
   .sort((a, b) => (a.level + a.code).localeCompare(b.level + b.code, "th"));
 
 // =================================================================== LOGIN
+// หาอีเมลเข้าระบบของครูจาก "ชื่อ" (หรือ "ชื่อ นามสกุล" กรณีชื่อซ้ำ)
+async function lookupTeacher(input) {
+  const typed = String(input || "").trim();
+  const hasSurname = typed.replace(/\s+/g, " ").split(" ").filter(Boolean).length > 1 && firstName(typed) !== normName(typed);
+  if (hasSurname) {
+    const full = await store.get("teacherLogin/" + await teacherKey(typed));
+    if (full?.email) return full;
+  }
+  const f = await store.get("teacherLogin/" + await teacherFirstKey(typed));
+  if (f?.ambiguous) return { ambiguous: true };
+  if (f?.email) return f;
+  if (!hasSurname) { const full = await store.get("teacherLogin/" + await teacherKey(typed)); if (full?.email) return full; }
+  return null;
+}
+// สร้างตารางค้นชื่อ (ชื่ออย่างเดียว) ให้ครูทุกคน · ชื่อซ้ำ = ต้องพิมพ์นามสกุล
+async function syncFirstNameLogins(staffList) {
+  const want = {};
+  for (const t of staffList) {
+    if (!t.email) continue;
+    const k = await teacherFirstKey(t.name);
+    (want[k] ||= []).push(t.email);
+  }
+  const prev = (await store.get("admin/teacherFirstKeys").catch(() => null))?.keys || [];
+  const ops = [];
+  for (const [k, emails] of Object.entries(want)) ops.push({ type: "set", path: "teacherLogin/" + k, data: emails.length === 1 ? { email: emails[0] } : { ambiguous: true } });
+  for (const k of prev) if (!want[k]) ops.push({ type: "del", path: "teacherLogin/" + k });
+  ops.push({ type: "set", path: "admin/teacherFirstKeys", data: { keys: Object.keys(want) } });
+  const sig = JSON.stringify(Object.entries(want).sort());
+  if (sig === SS.get("itw51:fkSig")) return;
+  await store.batch(ops);
+  SS.set("itw51:fkSig", sig);
+}
+
 function renderLogin(msg = "", mode = "teacher") {
   const t = mode === "teacher";
   app.innerHTML = `<div class="login-page"><header class="topbar"><div class="in"><div class="brand-name">${esc(CONFIG.schoolName)} · ${t ? "ครูผู้สอน" : "ผู้ดูแลระบบ"}</div></div></header>
@@ -74,9 +107,9 @@ function renderLogin(msg = "", mode = "teacher") {
     <div class="tabs" style="justify-content:center"><button class="${t ? "on" : ""}" data-m="teacher">ครูผู้สอน</button><button class="${t ? "" : "on"}" data-m="admin">ผู้ดูแลระบบ (admin)</button></div>
     <form class="card stack" id="f">
     <h1>${t ? "เข้าสู่ระบบครู" : "เข้าสู่ระบบผู้ดูแล"}</h1>
-    ${t ? `<div><label class="f" for="em">ชื่อผู้ใช้ (ชื่อ-สกุล)</label><input type="text" id="em" required autocomplete="username" placeholder="เช่น สมศรี มีสุข"></div>
+    ${t ? `<div><label class="f" for="em">ชื่อผู้ใช้ (ชื่อ ไม่ต้องมีนามสกุล)</label><input type="text" id="em" required autocomplete="username" placeholder="เช่น สมศรี"></div>
       <div><label class="f" for="pw">รหัสผ่าน (เบอร์โทรศัพท์)</label><input type="password" id="pw" required autocomplete="current-password" placeholder="เช่น 0812345678">
-        <div class="row between" style="margin-top:6px"><span class="hint" style="margin:0">ไม่ต้องใส่คำนำหน้าชื่อ</span><button type="button" class="linkbtn" id="forgot">ลืมรหัสผ่าน?</button></div></div>
+        <div class="row between" style="margin-top:6px"><span class="hint" style="margin:0">ไม่ต้องใส่คำนำหน้าชื่อและนามสกุล</span><button type="button" class="linkbtn" id="forgot">ลืมรหัสผ่าน?</button></div></div>
       <div id="fmsg"></div>`
     : `${isDemo ? `<div class="notice warn small">โหมดทดลอง: กรอกไว้ให้แล้ว กดเข้าสู่ระบบได้เลย</div>` : ""}
       <div><label class="f" for="em">อีเมล</label><input type="email" id="em" required autocomplete="username" value="${isDemo ? "admin@demo.local" : ""}"></div>
@@ -85,18 +118,19 @@ function renderLogin(msg = "", mode = "teacher") {
     <button class="btn primary block" id="go">เข้าสู่ระบบ</button>
   </form>
   ${t && isDemo ? `<div class="card stack demo-acc" style="margin-top:14px"><div class="small"><b>บัญชีครูทดลอง</b> — แตะเพื่อกรอกให้อัตโนมัติ</div>
-    <button type="button" class="btn sm block" data-u="ครูสมศรี มีสุข" data-p="0811111111">ครูสมศรี มีสุข · ที่ปรึกษากลุ่ม 99/3 · 0811111111 · มีอีเมล (ลองกดลืมรหัสผ่านได้)</button>
-    <button type="button" class="btn sm block" data-u="นายวิชัย ใจงาม" data-p="0822222222">นายวิชัย ใจงาม · ยังไม่มีกลุ่มที่ดูแล · 0822222222</button></div>` : ""}
+    <button type="button" class="btn sm block" data-u="สมศรี" data-p="0811111111">ครูสมศรี มีสุข · ที่ปรึกษากลุ่ม 99/3 · 0811111111 · มีอีเมล (ลองกดลืมรหัสผ่านได้)</button>
+    <button type="button" class="btn sm block" data-u="วิชัย" data-p="0822222222">นายวิชัย ใจงาม · ยังไม่มีกลุ่มที่ดูแล · 0822222222</button></div>` : ""}
   </div></div></div>`;
   $$(".tabs [data-m]").forEach(b => b.onclick = () => renderLogin("", b.dataset.m));
   if ($("#forgot")) $("#forgot").onclick = async () => {
     const name = $("#em").value.trim();
     const box = $("#fmsg");
-    if (!normName(name)) { box.innerHTML = `<div class="notice warn small">พิมพ์ชื่อ-สกุลในช่องชื่อผู้ใช้ก่อน แล้วกด "ลืมรหัสผ่าน?" อีกครั้ง</div>`; $("#em").focus(); return; }
+    if (!normName(name)) { box.innerHTML = `<div class="notice warn small">พิมพ์ชื่อในช่องชื่อผู้ใช้ก่อน แล้วกด "ลืมรหัสผ่าน?" อีกครั้ง</div>`; $("#em").focus(); return; }
     $("#forgot").disabled = true;
     try {
-      const look = await store.get("teacherLogin/" + await teacherKey(name));
-      if (!look?.email) box.innerHTML = `<div class="notice bad small">ไม่พบชื่อ "${esc(name)}" ในระบบ ตรวจการสะกดชื่อ-สกุล หรือติดต่อผู้ดูแลระบบ</div>`;
+      const look = await lookupTeacher(name);
+      if (look?.ambiguous) box.innerHTML = `<div class="notice warn small">มีครูชื่อนี้มากกว่า 1 คน กรุณาพิมพ์ชื่อและนามสกุล แล้วกด "ลืมรหัสผ่าน?" อีกครั้ง</div>`;
+      else if (!look?.email) box.innerHTML = `<div class="notice bad small">ไม่พบชื่อ "${esc(name)}" ในระบบ ตรวจการสะกดชื่อ หรือติดต่อผู้ดูแลระบบ</div>`;
       else if (!isRealEmail(look.email)) box.innerHTML = `<div class="notice warn small">บัญชีนี้ไม่มีอีเมล กรุณาติดต่อผู้ดูแลระบบเพื่อตั้งรหัสผ่านใหม่</div>`;
       else {
         const r = await store.admin.sendReset(look.email);
@@ -111,7 +145,8 @@ function renderLogin(msg = "", mode = "teacher") {
     $("#go").disabled = true;
     try {
       if (t) {
-        const look = await store.get("teacherLogin/" + await teacherKey($("#em").value));
+        const look = await lookupTeacher($("#em").value);
+        if (look?.ambiguous) { $("#err").textContent = "มีครูชื่อนี้มากกว่า 1 คน กรุณาพิมพ์ชื่อและนามสกุล"; return; }
         if (!look?.email) throw Object.assign(new Error(), { code: "auth/invalid-credential" });
         const pw = $("#pw").value.trim();
         // เบอร์โทรพิมพ์มีขีด/เว้นวรรคได้ · ถ้าครูเปลี่ยนรหัสผ่านเองแล้ว ใช้ตามที่พิมพ์
@@ -176,7 +211,9 @@ async function pageDash() {
         <p class="small muted" style="margin:10px 0 0">การดาวน์โหลดคะแนน ส่งคะแนนเข้า ITW51 และจัดการภาคเรียน เป็นสิทธิ์ของผู้ดูแลระบบ</p></div>`;
     return;
   }
-  const staffAll = (await store.list("staff").catch(() => [])).filter(t => t.role === "teacher" && t.active !== false);
+  const staffList = (await store.list("staff").catch(() => [])).filter(t => t.role === "teacher");
+  syncFirstNameLogins(staffList).catch(e => console.error("first-name sync", e));
+  const staffAll = staffList.filter(t => t.active !== false);
   const assignedG = new Set(staffAll.flatMap(t => t.groups || []));
   const waitG = [...new Set(Object.values(roster.students).map(x => x.g))].filter(g => !assignedG.has(g));
   $("#d").innerHTML = `
@@ -194,7 +231,7 @@ async function pageDash() {
         <li><a href="#/courses">สร้างบทเรียน</a> — ใส่วิดีโอ ตั้งเวลาออกคำถาม · เขียนใบความรู้ · สร้างแบบทดสอบ แล้วกด "เปิดให้นักศึกษาเรียน"</li>
         <li>นักศึกษาเข้าเรียนที่หน้าแรก ด้วยรหัสนักศึกษา + เลขบัตรประชาชน/เลข G</li>
         <li><a href="#/results">ดูผลและประกาศคะแนน</a> — วิดีโอ 5 + แบบทดสอบ 5 = 10 คะแนน</li>
-        <li><a href="#/export">ส่งคะแนนเข้า ITW51</a> — เขียนลงช่องคะแนนกลางภาคในไฟล์ GRADE.DBF</li>
+        <li><a href="#/export">ดาวน์โหลดคะแนน (Excel)</a> — นำไปนำเข้าคะแนนกลางภาคใน ITW51</li>
       </ol></div>
     <div class="card"><div class="row between"><h2 style="margin:0">ลิงก์สำหรับนักศึกษา</h2><button class="btn sm" id="copyLink">คัดลอกลิงก์</button></div>
       <p class="muted small" style="margin-top:8px"><code id="slink">${esc(new URL("index.html", location.href).href)}</code></p></div>`;
@@ -357,7 +394,7 @@ async function pageCourseEdit(cid) {
     published: !!doc?.published,
     video: { url: doc?.video?.url || "", title: doc?.video?.title || "", desc: doc?.video?.desc || "", questions: withKey(doc?.video?.questions, key?.video) },
     article: { title: doc?.article?.title || "", html: doc?.article?.html || "", attach: doc?.article?.attach || "" },
-    quiz: { title: doc?.quiz?.title || "", questions: withKey(doc?.quiz?.questions, key?.quiz) },
+    quiz: { title: doc?.quiz?.title || "", timeLimit: Number(doc?.quiz?.timeLimit) || 0, questions: withKey(doc?.quiz?.questions, key?.quiz) },
   };
   let dirty = false, tab = "video", player = null;
   const mark = () => { dirty = true; $("#saveState").textContent = "ยังไม่ได้บันทึก"; };
@@ -508,11 +545,14 @@ async function pageCourseEdit(cid) {
   const drawQuiz = () => {
     const z = st.quiz;
     $("#pane").innerHTML = `<div class="card stack" style="margin-bottom:12px">
-      <div class="row"><div class="grow"><label class="f">ชื่อแบบทดสอบ</label><input type="text" id="ztitle" value="${esc(z.title)}" placeholder="แบบทดสอบหลังเรียน"></div></div>
+      <div class="row" style="align-items:flex-end"><div class="grow" style="min-width:220px"><label class="f" for="ztitle">ชื่อแบบทดสอบ</label><input type="text" id="ztitle" value="${esc(z.title)}" placeholder="แบบทดสอบหลังเรียน"></div>
+        <div style="width:190px"><label class="f" for="ztime">เวลาทำ (นาที)</label><input type="number" id="ztime" min="0" max="300" step="1" value="${z.timeLimit || 0}"></div></div>
+      <p class="hint" style="margin:0">เวลาทำ: 0 = ไม่จับเวลา · ถ้าตั้งเวลา นักศึกษาต้องกด "เริ่มทำ" แล้วระบบนับถอยหลัง และส่งอัตโนมัติเมื่อหมดเวลา (ทำเสร็จก่อนกดส่งเองได้)</p>
       <div class="row"><span class="muted small">${z.questions.length} ข้อ = ${CONFIG.quizFull} คะแนน (ข้อละ ${z.questions.length ? fmtNum(CONFIG.quizFull / z.questions.length) : 0} คะแนน)</span><span class="grow"></span>
         <button class="btn" id="bulk">วางข้อสอบจากข้อความ</button><button class="btn accent" id="addQ">+ เพิ่มข้อ</button></div></div>
       <div id="zqs"></div>`;
     $("#ztitle").oninput = e => { z.title = e.target.value; mark(); };
+    $("#ztime").oninput = e => { z.timeLimit = Math.max(0, Math.min(300, Math.round(Number(e.target.value) || 0))); mark(); };
     const drawQs = () => {
       $("#zqs").innerHTML = z.questions.length ? z.questions.map((q, i) => qEditor(q, i, false)).join("") : `<div class="notice">ยังไม่มีข้อสอบ</div>`;
       bindQ($("#zqs"), z.questions, false, () => drawQuiz());
@@ -545,7 +585,7 @@ async function pageCourseEdit(cid) {
       const [c, k] = await Promise.all([store.get("courses/" + sid), store.get("keys/" + sid)]);
       st.video = { url: c.video?.url || "", title: c.video?.title || "", desc: c.video?.desc || "", questions: withKey(c.video?.questions, k?.video) };
       st.article = { title: c.article?.title || "", html: c.article?.html || "", attach: c.article?.attach || "" };
-      st.quiz = { title: c.quiz?.title || "", questions: withKey(c.quiz?.questions, k?.quiz) };
+      st.quiz = { title: c.quiz?.title || "", timeLimit: Number(c.quiz?.timeLimit) || 0, questions: withKey(c.quiz?.questions, k?.quiz) };
       d.remove(); mark(); drawTab(); toast("คัดลอกแล้ว อย่าลืมกดบันทึก");
     };
   };
@@ -572,7 +612,7 @@ async function pageCourseEdit(cid) {
       sem: roster.sem, code: meta.code, name: meta.name, level: meta.level, published: st.published,
       video: { url: st.video.url, title: st.video.title, desc: st.video.desc, questions: vs.map(x => x.q) },
       article: { title: st.article.title, html: st.article.html, attach: st.article.attach },
-      quiz: { title: st.quiz.title, questions: zs.map(x => x.q) },
+      quiz: { title: st.quiz.title, timeLimit: st.quiz.timeLimit || 0, questions: zs.map(x => x.q) },
       updatedAt: store.serverTime(), updatedBy: isAdm() ? user.email : (me?.name || user.email),
     };
     const size = new Blob([JSON.stringify(course)]).size;
@@ -733,7 +773,7 @@ async function resultsCourse(cid) {
     $("[data-x]", d).onclick = () => d.remove();
     $("#ok", d).onclick = async () => {
       const r = { ...byS[results.find(x => x.id === id).sid] }; delete r.id;
-      if ($("#rq", d).checked) { delete r.quiz; delete r.quizAt; delete r.qc; }
+      if ($("#rq", d).checked) { delete r.quiz; delete r.quizAt; delete r.qc; delete r.quizStartAt; }
       if ($("#rv", d).checked) { delete r.video; delete r.videoDone; delete r.vc; }
       delete r.score;
       await store.set("results/" + id, r, false); d.remove(); toast("ล้างผลแล้ว", "ok"); resultsCourse(cid);
@@ -794,10 +834,11 @@ async function pageStudents() {
 async function pageTeachers() {
   app.innerHTML = shell("teachers", `<div class="row between"><h1>ครูผู้สอน</h1><div class="row"><button class="btn" id="impT">นำเข้าจากไฟล์ Excel</button><button class="btn primary" id="addT">+ เพิ่มครู</button></div></div>
     <p class="muted">ให้สิทธิ์ admin: กด <b>แก้ไข</b> ที่ชื่อครู → ติ๊ก <b>ผู้ดูแลระบบ (admin)</b> ·
-    ครูเข้าระบบที่หน้านี้ (admin.html) ด้วย <b>ชื่อ-สกุล</b> + <b>เบอร์โทร</b> · เพิ่ม/แก้ไขบทเรียนได้ทุกวิชา · เห็นนักศึกษาเฉพาะกลุ่มที่กำหนด ·
+    ครูเข้าระบบที่หน้านี้ (admin.html) ด้วย <b>ชื่อ</b> (ไม่ต้องมีนามสกุล) + <b>เบอร์โทร</b> · เพิ่ม/แก้ไขบทเรียนได้ทุกวิชา · เห็นนักศึกษาเฉพาะกลุ่มที่กำหนด ·
     ไม่มีสิทธิ์ดาวน์โหลดคะแนน ส่งคะแนนเข้า ITW51 หรือจัดการภาคเรียน</p>
     <div id="tl"><div class="loading"><span class="spin"></span></div></div><div id="tsug"></div>`); bindShell();
   const staff = (await store.list("staff")).filter(t => t.role === "teacher").sort((a, b) => a.name.localeCompare(b.name, "th"));
+  await syncFirstNameLogins(staff).catch(e => console.error("first-name sync", e));
   // กลุ่มทั้งหมดที่รู้จัก (จากทุกภาคเรียน)
   const groupMap = {};
   for (const x of semList()) {
@@ -1339,154 +1380,96 @@ async function drawSemMgr() {
   });
 }
 
-// =================================================================== EXPORT → ITW51
+// =================================================================== EXPORT → Excel (นำไปนำเข้าใน ITW51)
 async function pageExport() {
-  app.innerHTML = shell("export", `<h1>ส่งคะแนนเข้า ITW51</h1>
-    <p class="muted">เขียนคะแนนออนไลน์ (เต็ม 10) ลงช่องคะแนนกลางภาคย่อยในไฟล์ <code>GRADE.DBF</code> ของ ITW51 แล้วรวมเป็นคะแนนกลางภาค (MIDTERM) ใหม่</p>
-    <div class="notice warn small"><b>ก่อนทำ:</b> ปิดโปรแกรม ITW51 และสำรองโฟลเดอร์ข้อมูลไว้ก่อนทุกครั้ง · หลังใส่คะแนนแล้วให้เปิด ITW51 และสั่งประมวลผลผลการเรียนใหม่</div>
-    <div class="card stack" style="margin-top:14px">
-      <h3>1 · เลือกไฟล์ GRADE.DBF</h3>
-      <div class="row">
-        ${window.showDirectoryPicker ? `<button class="btn primary" id="pickDir">เลือกโฟลเดอร์ ITW51 (บันทึกกลับได้โดยตรง)</button>` : ""}
-        <label class="btn">เลือกโฟลเดอร์ (ดาวน์โหลดไฟล์ใหม่) <input type="file" id="dirIn" webkitdirectory directory multiple class="hidden"></label>
-        <label class="btn">เลือกไฟล์ GRADE.DBF <input type="file" id="fileIn" accept=".dbf,.DBF" multiple class="hidden"></label>
-      </div>
-      <div id="srcs" class="small muted">ยังไม่ได้เลือกไฟล์</div>
-    </div>
-    <div id="cfg"></div><div id="prev"></div>`); bindShell();
+  app.innerHTML = shell("export", `<h1>ดาวน์โหลดคะแนน (Excel)</h1>
+    <p class="muted">${roster ? esc(semLabel(roster.sem)) : ""} · คะแนนออนไลน์เต็ม 10 (วิดีโอ ${CONFIG.videoFull} + แบบทดสอบ ${CONFIG.quizFull}) · ดาวน์โหลดเป็นไฟล์ Excel แล้วนำเข้าคะแนนกลางภาคใน ITW51</p>
+    <div id="ex"><div class="loading"><span class="spin"></span></div></div>`); bindShell();
   if (!needRoster()) return;
-  const sem = roster.sem;
-  let sources = [], dirHandle = null;
+  const cl = courseList().filter(c => (c.sids || []).length);
+  if (!cl.length) { $("#ex").innerHTML = `<div class="notice">ภาคเรียนนี้ยังไม่มีนักศึกษาลงทะเบียน</div>`; return; }
+  const { results, courses, keys } = await loadScores(roster.sem, cl.map(c => c.id));
+  const res = {}; for (const r of results) res[r.sid + "|" + r.courseId] = r;
+  const groups = [...new Set(Object.values(roster.students).map(x => x.g))].sort();
+  $("#ex").innerHTML = `<div class="card stack">
+    <div class="grid2">
+      <div><label class="f" for="xl">ระดับ</label><select id="xl"><option value="">ทุกระดับ</option>${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></div>
+      <div><label class="f" for="xg">กลุ่ม</label><select id="xg"><option value="">ทุกกลุ่ม</option>${groups.map(g => `<option value="${esc(g)}">${esc(g)}${roster.groups?.[g]?.name ? " · " + esc(roster.groups[g].name) : ""}</option>`).join("")}</select></div>
+    </div>
+    <div><label class="f" for="xc">รายวิชา</label><select id="xc"><option value="">ทุกรายวิชา</option>${cl.map(c => `<option value="${esc(c.id)}">${esc(c.code)} ${esc(c.name)}${courses[c.id]?.published ? "" : " (ยังไม่เปิดบทเรียน)"}</option>`).join("")}</select></div>
+    <div class="grid2">
+      <div><label class="f" for="xf">รูปแบบไฟล์</label><select id="xf">
+        <option value="sheets">แยกชีตตามรายวิชา (1 วิชา = 1 ชีต)</option>
+        <option value="one">ตารางเดียว ทุกคน-ทุกวิชา</option></select></div>
+      <div><label class="f" for="xz">นักศึกษาที่ยังไม่ได้ทำออนไลน์</label><select id="xz">
+        <option value="blank">เว้นว่าง</option><option value="zero">ใส่ 0</option><option value="skip">ไม่ใส่ในไฟล์</option></select></div>
+    </div>
+    <label class="row small"><input type="checkbox" id="xo" checked> <span>เฉพาะรายวิชาที่เปิดบทเรียนออนไลน์แล้ว</span></label>
+    <div id="xs" class="notice small"></div>
+    <div class="row end"><button class="btn primary" id="xd">⬇ ดาวน์โหลด Excel</button></div>
+  </div>
+  <div id="xprev" style="margin-top:14px"></div>`;
 
-  const setSources = async list => {
-    sources = [];
-    for (const s of list) {
-      const buf = await s.file.arrayBuffer();
-      const dbf = new DBF(buf);
-      if (!dbf.has("MIDTERM") || !dbf.has("STD_CODE")) continue;
-      let midMax = 60;
-      if (s.rule) { try { const r = new DBF(await s.rule.arrayBuffer()); const it = r.rows(["MIDC"]).next().value; if (it?.MIDC) midMax = it.MIDC; } catch {} }
-      sources.push({ ...s, buf, dbf, midMax });
+  const build = () => {
+    const lv = $("#xl").value, g = $("#xg").value, c1 = $("#xc").value, zero = $("#xz").value, onlyPub = $("#xo").checked;
+    const rows = [];
+    for (const c of cl) {
+      if (c1 && c.id !== c1) continue;
+      if (lv && c.level !== lv) continue;
+      if (onlyPub && !courses[c.id]?.published) continue;
+      for (const sid of c.sids || []) {
+        const st = roster.students[sid]; if (!st || (g && st.g !== g)) continue;
+        const r = res[sid + "|" + c.id];
+        const sc = r ? computeScore(courses[c.id], keys[c.id], r) : null;
+        const done = !!sc?.attempted;
+        if (!done && zero === "skip") continue;
+        const blank = !done && zero === "blank";
+        rows.push({ sid, std: CONFIG.schoolCode + sid, name: st.n, grp: st.g, level: LEVELS[st.l] || "", code: c.code, subject: c.name,
+          video: blank ? "" : done ? sc.video : 0, quiz: blank ? "" : done ? sc.quiz : 0,
+          total: blank ? "" : done ? sc.total : 0, itw: blank ? "" : done ? sc.itw : 0, status: done ? (r.quizAt ? "ทำครบ" : "ทำบางส่วน") : "ยังไม่ทำ" });
+      }
     }
-    $("#srcs").innerHTML = sources.length ? sources.map(s => `<span class="chip brand">${esc(s.label)}</span>`).join(" ") : `<span style="color:var(--bad)">ไม่พบไฟล์ GRADE.DBF ที่ถูกต้อง</span>`;
-    if (sources.length) drawConfig();
+    rows.sort((a, b) => a.code.localeCompare(b.code, "th") || a.grp.localeCompare(b.grp) || a.sid.localeCompare(b.sid));
+    return rows;
   };
-  const fromFiles = async files => {
-    const { lv, rules } = await collectFolder(files);
-    let list = Object.entries(lv).filter(([, v]) => v.grade).map(([l, v]) => ({ label: `${LEVELS[l]} (${l}/GRADE.DBF)`, level: l, file: v.grade, rule: rules[l] }));
-    if (!list.length) list = files.filter(f => /grade\.dbf$/i.test(f.name)).map((f, i) => ({ label: f.name + (files.length > 1 ? ` #${i + 1}` : ""), file: f }));
-    dirHandle = null; await setSources(list);
+  const HEAD = ["ลำดับ", "รหัสนักศึกษา", "ชื่อ-สกุล", "กลุ่ม", "ระดับ", "รหัสวิชา", "ชื่อวิชา", `วิดีโอ (${CONFIG.videoFull})`, `แบบทดสอบ (${CONFIG.quizFull})`, "รวม (10)", "คะแนนกลางภาค (ปัดเศษ)", "สถานะ"];
+  const toRow = (r, i) => [i + 1, r.sid, r.name, r.grp, r.level, r.code, r.subject, r.video, r.quiz, r.total, r.itw, r.status];
+  const draw = () => {
+    const rows = build();
+    const nSub = new Set(rows.map(r => r.code)).size, nDone = rows.filter(r => r.status !== "ยังไม่ทำ").length;
+    $("#xs").innerHTML = rows.length ? `จะได้ <b>${rows.length.toLocaleString()}</b> แถว · ${nSub} รายวิชา · ทำออนไลน์แล้ว ${nDone.toLocaleString()} คน-วิชา` : "ไม่มีข้อมูลตามเงื่อนไขที่เลือก";
+    $("#xd").disabled = !rows.length;
+    $("#xprev").innerHTML = rows.length ? `<div class="small muted" style="margin-bottom:6px">ตัวอย่าง ${Math.min(rows.length, 30)} แถวแรก</div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr>${HEAD.map((h, i) => `<th class="${i >= 7 && i <= 10 ? "n" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>
+      ${rows.slice(0, 30).map((r, i) => `<tr>${toRow(r, i).map((v, j) => `<td class="${j >= 7 && j <= 10 ? "n" : ""}">${esc(typeof v === "number" && j >= 7 && j <= 9 ? fmtNum(v) : v)}</td>`).join("")}</tr>`).join("")}
+      </tbody></table></div>` : "";
   };
-  $("#dirIn").onchange = e => fromFiles([...e.target.files]);
-  $("#fileIn").onchange = e => fromFiles([...e.target.files]);
-  if ($("#pickDir")) $("#pickDir").onclick = async () => {
+  ["xl", "xg", "xc", "xf", "xz", "xo"].forEach(id => $("#" + id).onchange = draw);
+  draw();
+
+  $("#xd").onclick = async () => {
+    const rows = build(); if (!rows.length) return;
+    $("#xd").disabled = true; $("#xd").innerHTML = `<span class="spin"></span> กำลังสร้างไฟล์`;
     try {
-      dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-      const list = [];
-      for (const l of ["1", "2", "3"]) {
-        let sub; try { sub = await dirHandle.getDirectoryHandle(l); } catch { continue; }
-        let gh = null, rule = null;
-        for await (const [name, h] of sub.entries()) {
-          if (h.kind !== "file") continue;
-          if (name.toUpperCase() === "GRADE.DBF") gh = h;
-          if (name.toUpperCase() === "RULE.DBF") rule = await h.getFile();
-        }
-        if (gh) list.push({ label: `${LEVELS[l]} (${l}/GRADE.DBF)`, level: l, file: await gh.getFile(), handle: gh, dir: sub, rule });
+      const XLSX = await loadXLSX();
+      const wb = XLSX.utils.book_new();
+      const mk = list => {
+        const ws = XLSX.utils.aoa_to_sheet([HEAD, ...list.map(toRow)]);
+        ws["!cols"] = [6, 13, 26, 9, 18, 10, 30, 10, 12, 9, 12, 11].map(w => ({ wch: w }));
+        // รหัสนักศึกษาเป็นข้อความ (กันเลข 0 หน้าหาย)
+        list.forEach((_, i) => { const a = XLSX.utils.encode_cell({ r: i + 1, c: 1 }); if (ws[a]) { ws[a].t = "s"; ws[a].z = "@"; } });
+        return ws;
+      };
+      if ($("#xf").value === "one") XLSX.utils.book_append_sheet(wb, mk(rows), "คะแนนออนไลน์");
+      else {
+        const by = {}; rows.forEach(r => (by[r.code] ||= []).push(r));
+        for (const [code, list] of Object.entries(by)) XLSX.utils.book_append_sheet(wb, mk(list), code.replace(/[\\/?*[\]:]/g, "-").slice(0, 31));
       }
-      if (!list.length) { toast("ไม่พบโฟลเดอร์ 1/2/3 ที่มี GRADE.DBF", "bad"); return; }
-      await setSources(list);
-    } catch (e) { if (e.name !== "AbortError") toast(e.message, "bad"); }
-  };
-
-  const drawConfig = () => {
-    // สถิติการใช้ช่องคะแนนย่อย MIDTERM1-9 ในภาคเรียนนี้
-    const used = Array(10).fill(0); let total = 0;
-    for (const s of sources) for (const r of s.dbf.rows(["SEMESTRY", ...Array.from({ length: 9 }, (_, i) => "MIDTERM" + (i + 1))])) {
-      if (r.SEMESTRY !== sem) continue; total++;
-      for (let k = 1; k <= 9; k++) if (r["MIDTERM" + k] !== null) used[k]++;
-    }
-    const firstFree = [3, 7, 9, 1, 2, 4, 5, 6, 8].find(k => !used[k]) || 3;
-    $("#cfg").innerHTML = `<div class="card stack" style="margin-top:14px">
-      <h3>2 · เลือกช่องคะแนนกลางภาคที่จะใส่คะแนนออนไลน์</h3>
-      <p class="small muted">ในภาคเรียน ${esc(sem)} มี ${total.toLocaleString()} ระเบียน · ตัวเลขใต้ช่อง = จำนวนระเบียนที่มีคะแนนอยู่แล้ว (สีส้ม = ใช้อยู่ จะถูกเขียนทับ)</p>
-      <div class="slot-grid">${Array.from({ length: 9 }, (_, i) => i + 1).map(k => `<label class="${used[k] ? "used" : ""} ${k === firstFree ? "on" : ""}"><input type="radio" name="slot" value="${k}" ${k === firstFree ? "checked" : ""}><b>${k}</b>${used[k] ? used[k].toLocaleString() : "ว่าง"}</label>`).join("")}</div>
-      <label class="row small"><input type="checkbox" id="recalc" checked> คำนวณคะแนนกลางภาค (MIDTERM) ใหม่ = ผลรวมช่อง 1–9 และคะแนนรวม (TOTAL) = กลางภาค + ปลายภาค</label>
-      <label class="row small"><input type="checkbox" id="zero"> นักศึกษาที่ไม่ได้เข้าเรียนออนไลน์ (ในวิชาที่เปิดบทเรียนแล้ว) ให้ใส่ 0</label>
-      <div class="row end"><button class="btn primary" id="calc">คำนวณและแสดงตัวอย่าง</button></div></div>`;
-    $$(".slot-grid label").forEach(l => l.onclick = () => { $$(".slot-grid label").forEach(x => x.classList.remove("on")); l.classList.add("on"); });
-    $("#calc").onclick = () => preview(Number($("input[name=slot]:checked").value), $("#recalc").checked, $("#zero").checked);
-  };
-
-  const preview = async (slot, recalc, zero) => {
-    $("#prev").innerHTML = `<div class="loading"><span class="spin"></span> กำลังคำนวณคะแนน…</div>`;
-    const { results, courses, keys } = await loadScores(sem, Object.keys(roster.courses));
-    const score = new Map();
-    for (const r of results) { const c = courses[r.courseId]; if (!c) continue; score.set(r.sid + "|" + c.code, computeScore(c, keys[r.courseId], r)); }
-    const pubCodes = new Set(Object.values(courses).filter(c => c?.published).map(c => c.code));
-    const F = "MIDTERM" + slot, changes = [], matched = new Set();
-    const outs = [];
-    for (const s of sources) {
-      const d = new DBF(s.buf.slice(0)); let n = 0;
-      for (const r of d.rows(["STD_CODE", "SEMESTRY", "SUB_CODE", "MIDTERM", "FINAL", "TOTAL", F])) {
-        if (r.SEMESTRY !== sem) continue;
-        const sid = r.STD_CODE.slice(-10), k = sid + "|" + r.SUB_CODE;
-        const sc = score.get(k);
-        let val;
-        if (sc && sc.attempted) val = sc.itw;
-        else if (zero && pubCodes.has(r.SUB_CODE) && roster.students?.[sid]) val = 0; // ไม่ใส่ 0 ให้กลุ่มที่ไม่ได้นำเข้า (เช่น เรือนจำ)
-        else continue;
-        matched.add(k);
-        d.setNum(r._i, F, val);
-        let mid = r.MIDTERM, tot = r.TOTAL;
-        if (recalc) {
-          const parts = Array.from({ length: 9 }, (_, i) => d.num(r._i, "MIDTERM" + (i + 1))).filter(v => v !== null);
-          mid = parts.reduce((a, b) => a + b, 0);
-          d.setNum(r._i, "MIDTERM", mid);
-          tot = mid + (r.FINAL || 0); d.setNum(r._i, "TOTAL", tot);
-        }
-        n++;
-        changes.push({ src: s.label, sid, name: roster.students[sid]?.n || "", code: r.SUB_CODE, old: r[F], val, oldMid: r.MIDTERM, mid, tot, over: mid > s.midMax, max: s.midMax });
-      }
-      if (n) d.touchHeader();
-      outs.push({ s, d, n });
-    }
-    const unmatched = [...score.entries()].filter(([k, v]) => v.attempted && !matched.has(k));
-    const over = changes.filter(c => c.over);
-    $("#prev").innerHTML = `<div class="card stack" style="margin-top:14px"><h3>3 · ตรวจสอบและบันทึก</h3>
-      <div class="stat-row">
-        <div class="stat"><div class="v">${changes.length.toLocaleString()}</div><div class="l">ระเบียนที่จะใส่คะแนน (ช่อง ${slot})</div></div>
-        <div class="stat"><div class="v" style="color:${over.length ? "var(--bad)" : "inherit"}">${over.length}</div><div class="l">กลางภาคเกินคะแนนเต็ม</div></div>
-        <div class="stat"><div class="v">${unmatched.length}</div><div class="l">ผลออนไลน์ที่ไม่พบใน GRADE.DBF</div></div>
-      </div>
-      ${over.length ? `<div class="notice bad small">มี ${over.length} ระเบียนที่คะแนนกลางภาครวมเกิน ${over[0].max} — ตรวจสอบสัดส่วนคะแนนย่อยอื่นใน ITW51 หรือเลือกช่องที่จะเขียนทับแทน</div>` : ""}
-      ${unmatched.length ? `<details class="small"><summary>ผลออนไลน์ที่ไม่พบใน GRADE.DBF (${unmatched.length})</summary>${unmatched.slice(0, 200).map(([k]) => esc(k.replace("|", " · "))).join("<br>")}</details>` : ""}
-      <div class="tbl-wrap" style="max-height:420px"><table class="tbl"><thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>วิชา</th><th class="n">ช่อง ${slot} เดิม</th><th class="n">ใหม่</th><th class="n">กลางภาคเดิม</th><th class="n">กลางภาคใหม่</th><th class="n">รวม</th></tr></thead><tbody>
-      ${changes.slice(0, 500).map(c => `<tr><td>${esc(c.sid)}</td><td>${esc(c.name)}</td><td>${esc(c.code)}</td><td class="n">${c.old ?? "—"}</td><td class="n"><b>${c.val}</b></td><td class="n">${c.oldMid ?? "—"}</td><td class="n" style="${c.over ? "color:var(--bad);font-weight:700" : ""}">${c.mid ?? "—"}</td><td class="n">${c.tot ?? "—"}</td></tr>`).join("")}
-      </tbody></table></div>${changes.length > 500 ? `<p class="small muted">แสดง 500 จาก ${changes.length.toLocaleString()} รายการ (ดูทั้งหมดในไฟล์รายงาน CSV)</p>` : ""}
-      <div class="row end">
-        <button class="btn" id="rep">ดาวน์โหลดรายงาน CSV</button>
-        ${outs.map((o, i) => !o.n ? "" : `<button class="btn" data-dl="${i}">ดาวน์โหลด GRADE.DBF ${o.s.level ? "(" + LEVELS[o.s.level] + ")" : ""} · ${o.n} รายการ</button>`).join("")}
-        ${dirHandle ? `<button class="btn primary" id="write">บันทึกลงโฟลเดอร์ ITW51 โดยตรง</button>` : ""}
-      </div>
-      <p class="small muted">ไฟล์ที่ดาวน์โหลดให้เปลี่ยนชื่อเป็น <code>GRADE.DBF</code> แล้ววางแทนไฟล์เดิมในโฟลเดอร์ระดับนั้น (1, 2 หรือ 3) · การบันทึกโดยตรงจะสำรองไฟล์เดิมเป็น GRADE_BAK_วันที่.DBF ไว้ให้อัตโนมัติ</p></div>`;
-    $("#rep").onclick = () => download(`ส่งคะแนนITW51_${sem.replace("/", "-")}_ช่อง${slot}.csv`, toCSV([["ไฟล์", "รหัสนักศึกษา", "ชื่อ", "รหัสวิชา", `ช่อง${slot}เดิม`, `ช่อง${slot}ใหม่`, "กลางภาคเดิม", "กลางภาคใหม่", "รวมใหม่", "เกินคะแนนเต็ม"],
-      ...changes.map(c => [c.src, c.sid, c.name, c.code, c.old ?? "", c.val, c.oldMid ?? "", c.mid ?? "", c.tot ?? "", c.over ? "เกิน" : ""])]), "text/csv;charset=utf-8");
-    $$("[data-dl]").forEach(b => b.onclick = () => { const o = outs[Number(b.dataset.dl)]; download(`GRADE${o.s.level ? "_" + o.s.level : ""}.DBF`, o.d.bytes()); });
-    if ($("#write")) $("#write").onclick = async () => {
-      if (!(await confirmBox("ปิดโปรแกรม ITW51 แล้วหรือยัง? ระบบจะสำรองไฟล์เดิมแล้วเขียนคะแนนลง GRADE.DBF", "บันทึก"))) return;
-      try {
-        const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
-        for (const o of outs) {
-          if (!o.s.handle || !o.n) continue;
-          if ((await o.s.handle.requestPermission?.({ mode: "readwrite" })) === "denied") throw new Error("ไม่ได้รับอนุญาตให้เขียนไฟล์");
-          const bak = await o.s.dir.getFileHandle(`GRADE_BAK_${stamp}.DBF`, { create: true });
-          let w = await bak.createWritable(); await w.write(o.s.buf); await w.close();
-          w = await o.s.handle.createWritable(); await w.write(o.d.bytes()); await w.close();
-        }
-        toast("บันทึกคะแนนลง ITW51 เรียบร้อย", "ok");
-        $("#write").disabled = true; $("#write").textContent = "บันทึกแล้ว ✓";
-      } catch (e) { console.error(e); toast("บันทึกไม่สำเร็จ: " + e.message, "bad"); }
-    };
+      const parts = [roster.sem.replace("/", "-"), $("#xl").value && "ระดับ" + $("#xl").value, $("#xg").value && "กลุ่ม" + $("#xg").value.replace(/\//g, "-"), $("#xc").value && roster.courses[$("#xc").value]?.code].filter(Boolean);
+      XLSX.writeFile(wb, `คะแนนออนไลน์_${parts.join("_")}.xlsx`);
+      toast("ดาวน์โหลดแล้ว", "ok");
+    } catch (e) { console.error(e); toast("สร้างไฟล์ไม่สำเร็จ: " + e.message, "bad"); }
+    finally { $("#xd").disabled = false; $("#xd").textContent = "⬇ ดาวน์โหลด Excel"; }
   };
 }
 

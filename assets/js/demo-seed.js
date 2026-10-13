@@ -1,8 +1,8 @@
 // ข้อมูลตัวอย่างสำหรับโหมดทดลอง — นักศึกษาทั้งหมดเป็นบุคคลสมมติ
-import { loginKey, courseId, resultId, computeScore, semId, teacherKey, TEACHER_DOMAIN } from "./common.js";
+import { loginKey, courseId, resultId, computeScore, semId, teacherKey, teacherFirstKey, TEACHER_DOMAIN } from "./common.js";
 
 const SEM0 = "68/2", SEM = "69/1", SEM2 = "69/2"; // 68/2 จบแล้ว · 69/1 ปัจจุบัน · 69/2 เตรียมล่วงหน้า
-const SEED_VERSION = 5;
+const SEED_VERSION = 6;
 // กลุ่มสมมติ 2 กลุ่ม: 99/3 (ครูสมศรี) และ 98/3 (ครูประภา — ยังไม่มีบัญชี ใช้ทดลองสร้างจากรายชื่อที่ปรึกษา)
 const GROUPS = { "99/3": { name: "กลุ่มทดลอง ก (ข้อมูลสมมติ)", advisor: "ครูสมศรี มีสุข" }, "98/3": { name: "กลุ่มทดลอง ข (ข้อมูลสมมติ)", advisor: "นางประภา ดีงาม" } };
 const GROUP_OF = sid => (Number(sid.slice(-1)) <= 4 ? "99/3" : "98/3");
@@ -98,6 +98,7 @@ export async function seedDemo(store) {
     const nameKey = await teacherKey(name);
     ops.push({ type: "set", path: "staff/" + uid, data: { name, nameKey, email, phone, groups, role: "teacher", active: true, pwChanged: false } });
     ops.push({ type: "set", path: "teacherLogin/" + nameKey, data: { email } });
+    ops.push({ type: "set", path: "teacherLogin/" + await teacherFirstKey(name), data: { email } });
   }
 
   // ภาคเรียนที่ 2/2569 (เตรียมล่วงหน้า): ครูสร้างบทเรียนรอไว้ 1 วิชา
