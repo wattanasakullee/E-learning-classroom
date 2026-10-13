@@ -416,7 +416,7 @@ async function route() {
 
 (async function init() {
   try {
-    store = await getStore();
+    store = await getStore({ student: true });
     demoBanner(isDemo, { page: "student", onReset: async () => { await store.reset(); setSession(null); location.hash = ""; location.reload(); } });
     settings = await store.get("settings/app").catch(() => null);
   } catch (e) {

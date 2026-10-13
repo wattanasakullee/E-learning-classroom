@@ -115,14 +115,18 @@ function demoStore() {
 }
 
 // ---------------- Firebase ----------------
-async function firebaseStore() {
+async function firebaseStore(opts = {}) {
   const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
   const [{ initializeApp, getApps }, fs, au] = await Promise.all([
     import(base + "firebase-app.js"), import(base + "firebase-firestore.js"), import(base + "firebase-auth.js"),
   ]);
-  const app = initializeApp(CONFIG.firebase);
+  // หน้านักศึกษาใช้การเชื่อมต่อแยก (ไม่ล็อกอิน) — ถ้าครู/admin ล็อกอินค้างในเบราว์เซอร์เดียวกัน
+  // จะไม่ถูกนับเป็นสิทธิ์ครู ทำให้ตรวจคะแนนตามเฉลยจริงเสมอ
+  const app = opts.student
+    ? (getApps().find(a => a.name === "student") || initializeApp(CONFIG.firebase, "student"))
+    : initializeApp(CONFIG.firebase);
   const db = fs.initializeFirestore(app, { ignoreUndefinedProperties: true });
-  const auth = au.getAuth(app);
+  const auth = opts.student ? au.initializeAuth(app, { persistence: au.inMemoryPersistence }) : au.getAuth(app);
   const conv = v => {
     if (v instanceof fs.Timestamp) return v.toDate().toISOString();
     if (Array.isArray(v)) return v.map(conv);
@@ -189,13 +193,13 @@ async function firebaseStore() {
 }
 
 let _store;
-export async function getStore() {
+export async function getStore(opts = {}) {
   if (!_store) {
     if (isDemo) {
       _store = demoStore();
       // โหมดทดลอง: ใส่ข้อมูลตัวอย่าง (นักศึกษาสมมติ) ถ้ายังไม่มีข้อมูล
       try { const { seedDemo } = await import("./demo-seed.js"); await seedDemo(_store); } catch (e) { console.warn("seed", e); }
-    } else _store = await firebaseStore();
+    } else _store = await firebaseStore(opts);
   }
   return _store;
 }
