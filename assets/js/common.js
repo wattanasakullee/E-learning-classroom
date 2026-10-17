@@ -38,19 +38,51 @@ export const fmtNum = n => (Math.round(n * 100) / 100).toLocaleString("th-TH", {
 export function uid() { return Math.random().toString(36).slice(2, 9); }
 
 // คำนวณคะแนน: วิดีโอ (กี่ข้อก็ได้) = 5 คะแนน, แบบทดสอบ (กี่ข้อก็ได้) = 5 คะแนน
+// ประเภทวิชา: ตามรหัสวิชา กศน. (หลักที่ 4: 1 = บังคับ, 2/3 = เลือก) เช่น ทช31001 = บังคับ, พว32023 = เลือก
+// ครูกำหนดเองได้ในหน้าแก้ไขบทเรียน (course.type = "core" | "elective")
+export const TYPE_LABEL = { core: "วิชาบังคับ", elective: "วิชาเลือก" };
+export function courseType(code, override) {
+  if (override === "core" || override === "elective") return override;
+  const m = String(code || "").trim().match(/^\D{2}\d(\d)/);
+  return m && m[1] !== "1" ? "elective" : "core";
+}
+export const DEFAULT_FINAL_FULL = 40;
+export const finalFullOf = course => Number(course?.final?.full) > 0 ? Number(course.final.full) : (CONFIG.finalFull || DEFAULT_FINAL_FULL);
+// วิชาเลือกที่ครูสร้างข้อสอบปลายภาคไว้
+export const hasFinalExam = course => !!course && courseType(course.code, course.type) === "elective" && (course.final?.questions || []).length > 0;
+
+// คะแนนกลางภาคแต่ละส่วน ครูกำหนดเองได้ทีละวิชา (ค่าเริ่มต้น วิดีโอ 5 + แบบทดสอบ 5)
+// ส่วนที่ไม่มีคำถาม (เช่น วิชาที่ไม่มีวิดีโอ) ไม่นับคะแนน
+const partFull = (v, d) => (v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? d : Math.max(0, Number(v)));
+export function midFulls(course) {
+  const vq = (course?.video?.questions || []).length, qq = (course?.quiz?.questions || []).length;
+  const vFull = vq ? partFull(course?.video?.full, CONFIG.videoFull) : 0;
+  const qFull = qq ? partFull(course?.quiz?.full, CONFIG.quizFull) : 0;
+  return { vFull, qFull, midFull: vFull + qFull };
+}
+
 export function computeScore(course, key, result) {
   const vq = course?.video?.questions || [], qq = course?.quiz?.questions || [];
   const r = result || {};
   const vc = vq.filter(q => r.video && r.video[q.id] !== undefined && r.video[q.id] === key?.video?.[q.id]).length;
   const qc = qq.filter(q => r.quiz && r.quiz[q.id] !== undefined && r.quiz[q.id] === key?.quiz?.[q.id]).length;
-  const video = vq.length ? (vc / vq.length) * CONFIG.videoFull : 0;
-  const quiz = qq.length ? (qc / qq.length) * CONFIG.quizFull : 0;
+  const { vFull, qFull, midFull } = midFulls(course);
+  const video = vq.length ? (vc / vq.length) * vFull : 0;
+  const quiz = qq.length ? (qc / qq.length) * qFull : 0;
   const total = video + quiz;
+  // ปลายภาค (วิชาเลือก)
+  const fq = hasFinalExam(course) ? course.final.questions : [];
+  const fc = fq.filter(q => r.fin && r.fin[q.id] !== undefined && r.fin[q.id] === key?.final?.[q.id]).length;
+  const ffull = finalFullOf(course);
+  const fin = fq.length ? (fc / fq.length) * ffull : 0;
   return {
     video: Math.round(video * 100) / 100, quiz: Math.round(quiz * 100) / 100,
     total: Math.round(total * 100) / 100, itw: Math.round(total + 1e-9),
+    vFull, qFull, midFull,
     videoCorrect: vc, videoCount: vq.length, quizCorrect: qc, quizCount: qq.length,
     attempted: !!(r.quizAt || (r.video && Object.keys(r.video).length)),
+    hasFinal: fq.length > 0, finalDone: !!r.finAt, finalFull: ffull,
+    final: Math.round(fin * 100) / 100, finalItw: Math.round(fin + 1e-9), finalCorrect: fc, finalCount: fq.length,
   };
 }
 

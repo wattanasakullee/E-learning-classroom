@@ -1,7 +1,7 @@
 import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
 import { DBF } from "./dbf.js";
-import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey } from "./common.js";
+import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, DEFAULT_FINAL_FULL, midFulls } from "./common.js";
 import { createPlayer } from "./player.js";
 
 const app = $("#app");
@@ -35,9 +35,24 @@ const NAV = [
 ];
 const ADMIN_PAGES = new Set(NAV.filter(n => n[3] === "admin").map(n => n[0]));
 
+const LOGO = `<img src="assets/img/logo.png" alt="ตราสัญลักษณ์">`;
+// ช่องรหัสผ่านพร้อมปุ่มรูปดวงตา (แสดง/ซ่อนรหัสผ่าน)
+const EYE_OPEN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_SHUT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.7 0 3.2-.5 4.5-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`;
+const pwInput = attrs => `<div class="pw-wrap"><input type="password" ${attrs}><button type="button" class="eye" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน">${EYE_OPEN}</button></div>`;
+function bindEyes(root = document) {
+  $$(".pw-wrap .eye", root).forEach(b => b.onclick = () => {
+    const i = b.previousElementSibling, show = i.type === "password";
+    i.type = show ? "text" : "password";
+    b.innerHTML = show ? EYE_SHUT : EYE_OPEN;
+    b.setAttribute("aria-label", show ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"); b.title = b.getAttribute("aria-label");
+    i.focus();
+  });
+}
+
 function shell(active, inner) {
   return `<header class="topbar"><div class="in">
-    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-4.5L21 9l-9 4.5z"/><path d="M7 11v4.5c0 1 2.2 2.5 5 2.5s5-1.5 5-2.5V11"/></svg></div>
+    <div class="logo">${LOGO}</div>
     <div><div class="brand-name">${esc(CONFIG.schoolName)} · ${isAdm() ? "ผู้ดูแลระบบ" : "ครูผู้สอน"}</div><div class="brand-sub">ห้องเรียนออนไลน์ ↔ ITW51</div></div>
     <div class="spacer"></div>
     <div class="user"><div>${esc(me?.name || user.email)}</div>${!isAdm() && me?.allGroups ? `<div style="opacity:.7">ดูได้ทุกกลุ่ม</div>` : !isAdm() && me?.groups?.length ? `<div style="opacity:.7">กลุ่ม ${esc(me.groups.join(", "))}</div>` : ""}</div>
@@ -102,18 +117,18 @@ async function syncFirstNameLogins(staffList) {
 
 function renderLogin(msg = "", mode = "teacher") {
   const t = mode === "teacher";
-  app.innerHTML = `<div class="login-page"><header class="topbar"><div class="in"><div class="brand-name">${esc(CONFIG.schoolName)} · ${t ? "ครูผู้สอน" : "ผู้ดูแลระบบ"}</div></div></header>
+  app.innerHTML = `<div class="login-page"><header class="topbar"><div class="in"><div class="logo">${LOGO}</div><div class="brand-name">${esc(CONFIG.schoolName)} · ${t ? "ครูผู้สอน" : "ผู้ดูแลระบบ"}</div></div></header>
   <div class="login-shell"><div class="login-card">
     <div class="tabs" style="justify-content:center"><button class="${t ? "on" : ""}" data-m="teacher">ครูผู้สอน</button><button class="${t ? "" : "on"}" data-m="admin">ผู้ดูแลระบบ (admin)</button></div>
     <form class="card stack" id="f">
     <h1>${t ? "เข้าสู่ระบบครู" : "เข้าสู่ระบบผู้ดูแล"}</h1>
     ${t ? `<div><label class="f" for="em">ชื่อผู้ใช้ (ชื่อ ไม่ต้องมีนามสกุล)</label><input type="text" id="em" required autocomplete="username" placeholder="เช่น สมศรี"></div>
-      <div><label class="f" for="pw">รหัสผ่าน (เบอร์โทรศัพท์)</label><input type="password" id="pw" required autocomplete="current-password" placeholder="เช่น 0812345678">
+      <div><label class="f" for="pw">รหัสผ่าน (เบอร์โทรศัพท์)</label>${pwInput(`id="pw" required autocomplete="current-password" placeholder="เช่น 0812345678"`)}
         <div class="row between" style="margin-top:6px"><span class="hint" style="margin:0">ไม่ต้องใส่คำนำหน้าชื่อและนามสกุล</span><button type="button" class="linkbtn" id="forgot">ลืมรหัสผ่าน?</button></div></div>
       <div id="fmsg"></div>`
     : `${isDemo ? `<div class="notice warn small">โหมดทดลอง: กรอกไว้ให้แล้ว กดเข้าสู่ระบบได้เลย</div>` : ""}
       <div><label class="f" for="em">อีเมล</label><input type="email" id="em" required autocomplete="username" value="${isDemo ? "admin@demo.local" : ""}"></div>
-      <div><label class="f" for="pw">รหัสผ่าน</label><input type="password" id="pw" required autocomplete="current-password" value="${isDemo ? "demo1234" : ""}"></div>`}
+      <div><label class="f" for="pw">รหัสผ่าน</label>${pwInput(`id="pw" required autocomplete="current-password" value="${isDemo ? "demo1234" : ""}"`)}</div>`}
     <div class="err" id="err">${esc(msg)}</div>
     <button class="btn primary block" id="go">เข้าสู่ระบบ</button>
   </form>
@@ -122,6 +137,7 @@ function renderLogin(msg = "", mode = "teacher") {
     <button type="button" class="btn sm block" data-u="วิชัย" data-p="0822222222">นายวิชัย ใจงาม · ยังไม่มีกลุ่มที่ดูแล · 0822222222</button></div>` : ""}
   </div></div></div>`;
   $$(".tabs [data-m]").forEach(b => b.onclick = () => renderLogin("", b.dataset.m));
+  bindEyes(app);
   if ($("#forgot")) $("#forgot").onclick = async () => {
     const name = $("#em").value.trim();
     const box = $("#fmsg");
@@ -163,11 +179,11 @@ function changePasswordModal() {
   const d = document.createElement("div"); d.className = "modal-back";
   d.innerHTML = `<form class="modal small stack"><h3>เปลี่ยนรหัสผ่าน</h3>
     <p class="small muted">ตั้งรหัสผ่านใหม่แทนเบอร์โทร (อย่างน้อย 6 ตัว) · <b>เปลี่ยนเองได้ 1 ครั้ง</b> ถ้าลืมภายหลัง ใช้ "ลืมรหัสผ่าน?" ที่หน้าเข้าสู่ระบบ ระบบจะส่งลิงก์ไปที่อีเมลของคุณ</p>
-    <div><label class="f" for="np">รหัสผ่านใหม่</label><input type="password" id="np" minlength="6" required autocomplete="new-password"></div>
-    <div><label class="f" for="np2">ยืนยันรหัสผ่านใหม่</label><input type="password" id="np2" minlength="6" required autocomplete="new-password"></div>
+    <div><label class="f" for="np">รหัสผ่านใหม่</label>${pwInput(`id="np" minlength="6" required autocomplete="new-password"`)}</div>
+    <div><label class="f" for="np2">ยืนยันรหัสผ่านใหม่</label>${pwInput(`id="np2" minlength="6" required autocomplete="new-password"`)}</div>
     <div class="err" id="npe"></div>
     <div class="row end"><button type="button" class="btn ghost" data-x>ยกเลิก</button><button class="btn primary">บันทึก</button></div></form>`;
-  document.body.appendChild(d);
+  document.body.appendChild(d); bindEyes(d);
   $("[data-x]", d).onclick = () => d.remove();
   $("form", d).onsubmit = async e => {
     e.preventDefault();
@@ -206,9 +222,9 @@ async function pageDash() {
         <ol style="margin:0;padding-left:1.2em;line-height:2">
           <li><a href="#/courses">รายวิชา / บทเรียน</a> — เพิ่มและแก้ไขวิดีโอ คำถาม ใบความรู้ แบบทดสอบ แล้วกด "เปิดให้นักศึกษาเรียน"</li>
           <li><a href="#/students">นักศึกษาในกลุ่ม</a> — ดูความก้าวหน้าและคะแนนของนักศึกษาในกลุ่มของตนเอง</li>
-          <li><a href="#/results">ผลคะแนน</a> — ดูคะแนนรายวิชา และให้นักศึกษาในกลุ่มสอบใหม่ได้</li>
+          <li><a href="#/results">ผลคะแนน</a> — ดูคะแนนรายวิชาของนักศึกษาในกลุ่มของตนเอง</li>
         </ol>
-        <p class="small muted" style="margin:10px 0 0">การดาวน์โหลดคะแนน ส่งคะแนนเข้า ITW51 และจัดการภาคเรียน เป็นสิทธิ์ของผู้ดูแลระบบ</p></div>`;
+        <p class="small muted" style="margin:10px 0 0">การล้างผลให้นักศึกษาสอบใหม่ ดาวน์โหลดคะแนน และจัดการภาคเรียน เป็นสิทธิ์ของผู้ดูแลระบบ</p></div>`;
     return;
   }
   const staffList = (await store.list("staff").catch(() => [])).filter(t => t.role === "teacher");
@@ -261,13 +277,15 @@ async function pageCourses() {
     const mineOnly = $("#mine")?.checked && Object.keys(roster.students || {}).length;
     const rows = cl.filter(c => (!lv || c.level === lv) && (!q || (c.code + c.name).toLowerCase().includes(q)) && (!mineOnly || (c.sids || []).some(canSee)));
     $("#list").innerHTML = !cl.length ? `<div class="card"><p>ยังไม่มีรายวิชาในภาคเรียนนี้</p>${isAdm() ? `<button class="btn primary" id="addCourse2">+ เพิ่มรายวิชา</button>` : `<p class="muted small">ผู้ดูแลระบบเป็นผู้เพิ่มรายวิชา</p>`}</div>` :
-      `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>ระดับ</th><th class="n">${seesAll() ? "นักศึกษา" : "กลุ่มฉัน / ทั้งหมด"}</th><th>วิดีโอ</th><th>ใบความรู้</th><th>แบบทดสอบ</th><th>สถานะ</th><th></th></tr></thead><tbody>
+      `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>ประเภท</th><th>ระดับ</th><th class="n">${seesAll() ? "นักศึกษา" : "กลุ่มฉัน / ทั้งหมด"}</th><th>วิดีโอ</th><th>ใบความรู้</th><th>แบบทดสอบ</th><th>ปลายภาค</th><th>สถานะ</th><th></th></tr></thead><tbody>
       ${rows.map(c => { const d = docs[c.id], n = c.sids?.length || 0, mine = isAdm() ? n : (c.sids || []).filter(canSee).length;
-        return `<tr class="click" data-id="${esc(c.id)}"><td>${esc(c.code)}</td><td>${esc(c.name)}</td><td>${esc(LEVELS[c.level] || "")}</td>
+        const ty = courseType(c.code, d?.type);
+        return `<tr class="click" data-id="${esc(c.id)}"><td>${esc(c.code)}</td><td>${esc(c.name)}</td><td><span class="type-tag ${ty}">${TYPE_LABEL[ty]}</span></td><td>${esc(LEVELS[c.level] || "")}</td>
         <td class="n">${n ? (seesAll() ? n : `${mine} <span class="muted small">/ ${n}</span>`) : `<span class="chip">รอลงทะเบียน</span>`}</td>
         <td>${d?.video?.url ? `<span class="chip ok">${d.video.questions?.length || 0} คำถาม</span>` : `<span class="chip">—</span>`}</td>
         <td>${d?.article?.html ? `<span class="chip ok">มี</span>` : `<span class="chip">—</span>`}</td>
         <td>${d?.quiz?.questions?.length ? `<span class="chip ok">${d.quiz.questions.length} ข้อ</span>` : `<span class="chip">—</span>`}</td>
+        <td>${ty !== "elective" ? `<span class="muted small">ไม่มี</span>` : hasFinalExam(d) ? `<span class="chip ${d.final.open ? "brand" : "ok"}">${d.final.questions.length} ข้อ${d.final.open ? " · เปิดสอบ" : ""}</span>` : `<span class="chip">—</span>`}</td>
         <td>${d?.published ? `<span class="chip brand">เปิดเรียนแล้ว</span>` : d ? `<span class="chip warn">ฉบับร่าง</span>` : `<span class="chip">ยังไม่สร้าง</span>`}</td>
         <td>${!n && isAdm() ? `<button class="btn sm ghost danger" data-del="${esc(c.id)}" title="ลบรายวิชาออกจากภาคเรียนนี้">ลบ</button>` : ""}</td></tr>`; }).join("")}
       </tbody></table></div>`;
@@ -392,10 +410,13 @@ async function pageCourseEdit(cid) {
   const withKey = (qs, k) => (qs || []).map(q => ({ ...q, correct: k?.[q.id] ?? null }));
   const st = {
     published: !!doc?.published,
-    video: { url: doc?.video?.url || "", title: doc?.video?.title || "", desc: doc?.video?.desc || "", questions: withKey(doc?.video?.questions, key?.video) },
+    video: { url: doc?.video?.url || "", title: doc?.video?.title || "", desc: doc?.video?.desc || "", full: fullOr(doc?.video?.full, CONFIG.videoFull), questions: withKey(doc?.video?.questions, key?.video) },
     article: { title: doc?.article?.title || "", html: doc?.article?.html || "", attach: doc?.article?.attach || "" },
-    quiz: { title: doc?.quiz?.title || "", timeLimit: Number(doc?.quiz?.timeLimit) || 0, questions: withKey(doc?.quiz?.questions, key?.quiz) },
+    quiz: { title: doc?.quiz?.title || "", timeLimit: Number(doc?.quiz?.timeLimit) || 0, full: fullOr(doc?.quiz?.full, CONFIG.quizFull), questions: withKey(doc?.quiz?.questions, key?.quiz) },
+    type: doc?.type === "core" || doc?.type === "elective" ? doc.type : "",
+    final: finalState(doc, key),
   };
+  const effType = () => courseType(meta.code, st.type);
   let dirty = false, tab = "video", player = null;
   const mark = () => { dirty = true; $("#saveState").textContent = "ยังไม่ได้บันทึก"; };
   const before = e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
@@ -405,18 +426,44 @@ async function pageCourseEdit(cid) {
   $("#main").innerHTML = `
     <div class="crumb"><a href="#/courses">← รายวิชาทั้งหมด</a></div>
     <div class="row between" style="align-items:flex-start">
-      <div><div class="muted small">${esc(meta.code)} · ${esc(LEVELS[meta.level] || "")} · ${meta.sids?.length ? meta.sids.length + " คน" : "รอลงทะเบียน"} · ${esc(semLabel(roster.sem))}</div>
+      <div><div class="muted small"><span class="type-tag ${effType()}" id="ttag">${TYPE_LABEL[effType()]}</span>${esc(meta.code)} · ${esc(LEVELS[meta.level] || "")} · ${meta.sids?.length ? meta.sids.length + " คน" : "รอลงทะเบียน"} · ${esc(semLabel(roster.sem))}</div>
       <h1 style="margin:0">${esc(meta.name)}</h1></div>
       <div class="row">
+        <select id="ctype" title="ประเภทวิชา" style="width:auto">
+          <option value="" ${st.type ? "" : "selected"}>ประเภท: ตามรหัสวิชา (${TYPE_LABEL[courseType(meta.code)]})</option>
+          <option value="core" ${st.type === "core" ? "selected" : ""}>ประเภท: วิชาบังคับ</option>
+          <option value="elective" ${st.type === "elective" ? "selected" : ""}>ประเภท: วิชาเลือก</option></select>
         <label class="row small" style="gap:6px"><input type="checkbox" id="pub" ${st.published ? "checked" : ""}> เปิดให้นักศึกษาเรียน</label>
         <button class="btn" id="copyFrom">คัดลอกจากวิชาอื่น</button>
         <button class="btn primary" id="save">บันทึก</button>
       </div>
     </div>
-    <div class="small muted" id="saveState" style="margin:4px 0 10px">${doc ? "บันทึกแล้ว" : "ยังไม่ได้สร้างบทเรียน"}</div>
-    <div class="tabs"><button data-t="video">1 · วิดีโอ + คำถาม</button><button data-t="article">2 · ใบความรู้</button><button data-t="quiz">3 · แบบทดสอบ</button></div>
+    <div class="small muted" id="saveState" style="margin:4px 0 4px">${doc ? "บันทึกแล้ว" : "ยังไม่ได้สร้างบทเรียน"}</div>
+    <div class="notice small" id="midsum" style="margin:0 0 10px"></div>
+    <div class="tabs" id="etabs"></div>
     <div id="pane"></div>`;
   $("#pub").onchange = e => { st.published = e.target.checked; mark(); };
+  // สรุปคะแนนกลางภาคของวิชานี้ (ส่วนที่ไม่มีคำถามไม่นับ)
+  const drawSum = () => {
+    const f = midFulls({ video: st.video, quiz: st.quiz });
+    const parts = [st.video.questions.length ? `วิดีโอ ${fmtNum(f.vFull)}` : "", st.quiz.questions.length ? `แบบทดสอบ ${fmtNum(f.qFull)}` : ""].filter(Boolean);
+    $("#midsum").innerHTML = `คะแนน${effType() === "elective" ? "กลางภาค" : ""}ออนไลน์เต็ม <b>${fmtNum(f.midFull)}</b> คะแนน${parts.length ? ` (${parts.join(" + ")})` : " — ยังไม่มีคำถาม"}`
+      + `${effType() === "elective" && st.final.questions.length ? ` · ปลายภาคเต็ม <b>${fmtNum(st.final.full)}</b>` : ""} · ตั้งคะแนนแต่ละส่วนได้ในแท็บวิดีโอและแท็บแบบทดสอบ`;
+  };
+  const markSum = () => { mark(); drawSum(); };
+  // แท็บ: วิชาบังคับ = กลางภาคอย่างเดียว · วิชาเลือก = กลางภาค + ข้อสอบปลายภาค
+  const drawTabBar = () => {
+    const el = effType() === "elective";
+    $("#etabs").innerHTML = `<button data-t="video">1 · วิดีโอ + คำถาม</button><button data-t="article">2 · ใบความรู้</button><button data-t="quiz">3 · ${el ? "แบบทดสอบกลางภาค" : "แบบทดสอบ"}</button>${el ? `<button data-t="final">4 · ข้อสอบปลายภาค</button>` : ""}`;
+    $$("#etabs button").forEach(b => { b.classList.toggle("on", b.dataset.t === tab); b.onclick = () => { tab = b.dataset.t; drawTab(); }; });
+  };
+  $("#ctype").onchange = e => {
+    st.type = e.target.value; mark();
+    $("#ttag").className = "type-tag " + effType(); $("#ttag").textContent = TYPE_LABEL[effType()];
+    if (tab === "final" && effType() !== "elective") tab = "quiz";
+    drawTabBar(); drawTab();
+    if (effType() === "elective") toast("วิชาเลือก: มีแท็บ 4 · ข้อสอบปลายภาค เพิ่มแล้ว");
+  };
 
   const qEditor = (q, i, withTime) => `<div class="q-edit" data-i="${i}">
     <div class="head"><b>ข้อ ${i + 1}</b>
@@ -468,15 +515,19 @@ async function pageCourseEdit(cid) {
         <div class="row"><span class="muted small">เวลาปัจจุบัน <b id="vnow">0:00</b></span><span class="grow"></span>
           <button class="btn accent" id="addAtNow">+ เพิ่มคำถาม ณ เวลานี้</button></div>
       </div>
-      <div><div class="row between" style="margin-bottom:8px"><h3 style="margin:0">คำถามระหว่างวิดีโอ (${v.questions.length} ข้อ = ${CONFIG.videoFull} คะแนน)</h3>
+      <div><div class="row" style="margin-bottom:8px;align-items:flex-end"><div style="width:170px"><label class="f" for="vfull">คะแนนส่วนวิดีโอ</label><input type="number" id="vfull" min="0" max="60" step="0.5" value="${v.full}"></div>
+        <span class="hint" style="margin:0 0 10px">0 = ไม่นับคะแนนวิดีโอ</span></div>
+        <div class="row between" style="margin-bottom:8px"><h3 style="margin:0" id="vqh">คำถามระหว่างวิดีโอ (${v.questions.length} ข้อ = ${fmtNum(v.full)} คะแนน)</h3>
         <button class="btn sm" id="sortT">เรียงตามเวลา</button></div>
         <div id="vqs"></div></div></div>`;
     const drawQs = () => {
       $("#vqs").innerHTML = v.questions.length ? v.questions.map((q, i) => qEditor(q, i, true)).join("") : `<div class="notice">ยังไม่มีคำถาม — เล่นวิดีโอไปยังจุดที่ต้องการ แล้วกด "เพิ่มคำถาม ณ เวลานี้"</div>`;
       bindQ($("#vqs"), v.questions, true, drawQs);
-      const h = $(".tabs + #pane h3"); if (h) h.textContent = `คำถามระหว่างวิดีโอ (${v.questions.length} ข้อ = ${CONFIG.videoFull} คะแนน)`;
+      const h = $("#vqh"); if (h) h.textContent = `คำถามระหว่างวิดีโอ (${v.questions.length} ข้อ = ${fmtNum(v.full)} คะแนน)`;
+      drawSum();
     };
     drawQs();
+    $("#vfull").onchange = e => { v.full = fullOr(e.target.value, 0, 60); e.target.value = v.full; markSum(); drawQs(); };
     $("#vtitle").oninput = e => { v.title = e.target.value; mark(); };
     $("#vdesc").oninput = e => { v.desc = e.target.value; mark(); };
     const load = async () => {
@@ -542,20 +593,45 @@ async function pageCourseEdit(cid) {
     };
   };
 
+  const drawFinal = () => {
+    const z = st.final;
+    $("#pane").innerHTML = `<div class="card stack" style="margin-bottom:12px">
+      <div class="notice small" style="margin:0">ข้อสอบปลายภาคของ<b>วิชาเลือก</b> · นักศึกษาทำได้เมื่อครูติ๊ก "เปิดให้สอบปลายภาค" · ส่งได้ครั้งเดียว · คะแนนแยกจากกลางภาค (ส่งเข้า ITW51 ช่องปลายภาค)</div>
+      <div class="row" style="align-items:flex-end"><div class="grow" style="min-width:220px"><label class="f" for="ftitle">ชื่อข้อสอบ</label><input type="text" id="ftitle" value="${esc(z.title)}" placeholder="ข้อสอบปลายภาค"></div>
+        <div style="width:150px"><label class="f" for="ffull">คะแนนเต็ม</label><input type="number" id="ffull" min="1" max="100" step="1" value="${z.full}"></div>
+        <div style="width:150px"><label class="f" for="ftime">เวลาทำ (นาที)</label><input type="number" id="ftime" min="0" max="300" step="1" value="${z.timeLimit || 0}"></div></div>
+      <label class="row" style="gap:8px"><input type="checkbox" id="fopen" ${z.open ? "checked" : ""}> <span><b>เปิดให้สอบปลายภาค</b> <span class="muted small">(ติ๊กเมื่อถึงวันสอบ · เอาติ๊กออกเพื่อปิดรับ ผู้ที่ส่งแล้วยังเห็นคะแนน)</span></span></label>
+      <div class="row"><span class="muted small">${z.questions.length} ข้อ = ${z.full} คะแนน (ข้อละ ${z.questions.length ? fmtNum(z.full / z.questions.length) : 0} คะแนน)</span><span class="grow"></span>
+        <button class="btn" id="bulk">วางข้อสอบจากข้อความ</button><button class="btn accent" id="addQ">+ เพิ่มข้อ</button></div></div>
+      <div id="zqs"></div>`;
+    $("#ftitle").oninput = e => { z.title = e.target.value; mark(); };
+    $("#ffull").onchange = e => { z.full = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || DEFAULT_FINAL_FULL))); markSum(); drawFinal(); };
+    $("#ftime").oninput = e => { z.timeLimit = Math.max(0, Math.min(300, Math.round(Number(e.target.value) || 0))); mark(); };
+    $("#fopen").onchange = e => { z.open = e.target.checked; mark(); };
+    $("#zqs").innerHTML = z.questions.length ? z.questions.map((q, i) => qEditor(q, i, false)).join("") : `<div class="notice">ยังไม่มีข้อสอบปลายภาค</div>`;
+    bindQ($("#zqs"), z.questions, false, () => drawFinal());
+    drawSum();
+    $("#addQ").onclick = () => { z.questions.push({ id: "f" + uid(), text: "", choices: ["", "", "", ""], correct: null }); mark(); drawFinal(); $$("#zqs .q-edit").pop()?.scrollIntoView({ block: "center" }); };
+    $("#bulk").onclick = () => bulkImport(qs => { z.questions.push(...qs.map(q => ({ ...q, id: "f" + uid() }))); mark(); drawFinal(); });
+  };
+
   const drawQuiz = () => {
     const z = st.quiz;
     $("#pane").innerHTML = `<div class="card stack" style="margin-bottom:12px">
       <div class="row" style="align-items:flex-end"><div class="grow" style="min-width:220px"><label class="f" for="ztitle">ชื่อแบบทดสอบ</label><input type="text" id="ztitle" value="${esc(z.title)}" placeholder="แบบทดสอบหลังเรียน"></div>
-        <div style="width:190px"><label class="f" for="ztime">เวลาทำ (นาที)</label><input type="number" id="ztime" min="0" max="300" step="1" value="${z.timeLimit || 0}"></div></div>
+        <div style="width:150px"><label class="f" for="zfull">คะแนนแบบทดสอบ</label><input type="number" id="zfull" min="0" max="60" step="0.5" value="${z.full}"></div>
+        <div style="width:150px"><label class="f" for="ztime">เวลาทำ (นาที)</label><input type="number" id="ztime" min="0" max="300" step="1" value="${z.timeLimit || 0}"></div></div>
       <p class="hint" style="margin:0">เวลาทำ: 0 = ไม่จับเวลา · ถ้าตั้งเวลา นักศึกษาต้องกด "เริ่มทำ" แล้วระบบนับถอยหลัง และส่งอัตโนมัติเมื่อหมดเวลา (ทำเสร็จก่อนกดส่งเองได้)</p>
-      <div class="row"><span class="muted small">${z.questions.length} ข้อ = ${CONFIG.quizFull} คะแนน (ข้อละ ${z.questions.length ? fmtNum(CONFIG.quizFull / z.questions.length) : 0} คะแนน)</span><span class="grow"></span>
+      <div class="row"><span class="muted small">${z.questions.length} ข้อ = ${fmtNum(z.full)} คะแนน (ข้อละ ${z.questions.length ? fmtNum(z.full / z.questions.length) : 0} คะแนน)</span><span class="grow"></span>
         <button class="btn" id="bulk">วางข้อสอบจากข้อความ</button><button class="btn accent" id="addQ">+ เพิ่มข้อ</button></div></div>
       <div id="zqs"></div>`;
     $("#ztitle").oninput = e => { z.title = e.target.value; mark(); };
+    $("#zfull").onchange = e => { z.full = fullOr(e.target.value, 0, 60); markSum(); drawQuiz(); };
     $("#ztime").oninput = e => { z.timeLimit = Math.max(0, Math.min(300, Math.round(Number(e.target.value) || 0))); mark(); };
     const drawQs = () => {
       $("#zqs").innerHTML = z.questions.length ? z.questions.map((q, i) => qEditor(q, i, false)).join("") : `<div class="notice">ยังไม่มีข้อสอบ</div>`;
       bindQ($("#zqs"), z.questions, false, () => drawQuiz());
+      drawSum();
     };
     drawQs();
     $("#addQ").onclick = () => { z.questions.push({ id: "q" + uid(), text: "", choices: ["", "", "", ""], correct: null }); mark(); drawQuiz(); $$("#zqs .q-edit").pop()?.scrollIntoView({ block: "center" }); };
@@ -563,12 +639,12 @@ async function pageCourseEdit(cid) {
   };
 
   const drawTab = () => {
-    $$(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === tab));
+    $$("#etabs button").forEach(b => b.classList.toggle("on", b.dataset.t === tab));
     player?.destroy(); player = null;
-    ({ video: drawVideo, article: drawArticle, quiz: drawQuiz })[tab]();
+    ({ video: drawVideo, article: drawArticle, quiz: drawQuiz, final: drawFinal })[tab]();
+    drawSum();
   };
-  $$(".tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; drawTab(); });
-  drawTab();
+  drawTabBar(); drawTab();
 
   $("#copyFrom").onclick = async () => {
     const all = (await store.list("courses")).filter(c => c.id !== cid);
@@ -583,10 +659,11 @@ async function pageCourseEdit(cid) {
     $("#doCopy", d).onclick = async () => {
       const sid = $("#src", d).value; if (!sid) return;
       const [c, k] = await Promise.all([store.get("courses/" + sid), store.get("keys/" + sid)]);
-      st.video = { url: c.video?.url || "", title: c.video?.title || "", desc: c.video?.desc || "", questions: withKey(c.video?.questions, k?.video) };
+      st.video = { url: c.video?.url || "", title: c.video?.title || "", desc: c.video?.desc || "", full: fullOr(c.video?.full, CONFIG.videoFull), questions: withKey(c.video?.questions, k?.video) };
       st.article = { title: c.article?.title || "", html: c.article?.html || "", attach: c.article?.attach || "" };
-      st.quiz = { title: c.quiz?.title || "", timeLimit: Number(c.quiz?.timeLimit) || 0, questions: withKey(c.quiz?.questions, k?.quiz) };
-      d.remove(); mark(); drawTab(); toast("คัดลอกแล้ว อย่าลืมกดบันทึก");
+      st.quiz = { title: c.quiz?.title || "", timeLimit: Number(c.quiz?.timeLimit) || 0, full: fullOr(c.quiz?.full, CONFIG.quizFull), questions: withKey(c.quiz?.questions, k?.quiz) };
+      if (c.final?.questions?.length) st.final = { ...finalState(c, k), open: false };
+      d.remove(); mark(); drawTabBar(); drawTab(); toast("คัดลอกแล้ว อย่าลืมกดบันทึก");
     };
   };
 
@@ -599,25 +676,32 @@ async function pageCourseEdit(cid) {
       if (q.correct === null || q.correct === undefined || !q.choices[q.correct]) probs.push(`${label} ข้อ ${i + 1}: ยังไม่ได้เลือกคำตอบที่ถูก`);
     });
     check(st.video.questions, "คำถามวิดีโอ"); check(st.quiz.questions, "แบบทดสอบ");
+    const elective = effType() === "elective";
+    if (elective) check(st.final.questions, "ข้อสอบปลายภาค");
+    if (elective && st.final.open && !st.final.questions.length) probs.push("ติ๊กเปิดให้สอบปลายภาค แต่ยังไม่มีข้อสอบปลายภาค");
+    if (!midFulls({ video: st.video, quiz: st.quiz }).midFull) probs.push("คะแนนกลางภาคเต็มเป็น 0 — ตั้งคะแนนส่วนวิดีโอหรือแบบทดสอบอย่างน้อย 1 ส่วน");
     if (st.published && probs.length) { await messageBox("ยังเปิดให้เรียนไม่ได้ แก้ไขรายการต่อไปนี้ก่อน", probs.slice(0, 12)); return; }
-    if (st.published && st.video.url && !st.video.questions.length) toast("หมายเหตุ: วิดีโอยังไม่มีคำถาม ส่วนวิดีโอจะได้ 0 คะแนน", "");
+    if (st.published && st.video.url && !st.video.questions.length) toast("หมายเหตุ: วิดีโอยังไม่มีคำถาม จึงไม่นับคะแนนส่วนวิดีโอ", "");
     const strip = qs => qs.map(q => {
       // ตัดตัวเลือกว่าง และปรับเลขเฉลยให้ตรง
       const keep = q.choices.map((c, j) => [c, j]).filter(([c]) => c);
       const newCorrect = keep.findIndex(([, j]) => j === q.correct);
       return { q: { id: q.id, ...(q.t !== undefined ? { t: q.t } : {}), text: q.text.trim(), choices: keep.map(([c]) => c) }, correct: newCorrect < 0 ? null : newCorrect };
     });
-    const vs = strip([...st.video.questions].sort((a, b) => a.t - b.t)), zs = strip(st.quiz.questions);
+    const vs = strip([...st.video.questions].sort((a, b) => a.t - b.t)), zs = strip(st.quiz.questions), fs = strip(st.final.questions);
     const course = {
       sem: roster.sem, code: meta.code, name: meta.name, level: meta.level, published: st.published,
-      video: { url: st.video.url, title: st.video.title, desc: st.video.desc, questions: vs.map(x => x.q) },
+      video: { url: st.video.url, title: st.video.title, desc: st.video.desc, full: st.video.full, questions: vs.map(x => x.q) },
       article: { title: st.article.title, html: st.article.html, attach: st.article.attach },
-      quiz: { title: st.quiz.title, timeLimit: st.quiz.timeLimit || 0, questions: zs.map(x => x.q) },
+      quiz: { title: st.quiz.title, timeLimit: st.quiz.timeLimit || 0, full: st.quiz.full, questions: zs.map(x => x.q) },
+      type: st.type || null,
+      // ข้อสอบปลายภาค (เก็บไว้แม้เปลี่ยนเป็นวิชาบังคับ แต่นักศึกษาจะไม่เห็น)
+      final: { title: st.final.title, timeLimit: st.final.timeLimit || 0, full: st.final.full, open: elective && !!st.final.open, questions: fs.map(x => x.q) },
       updatedAt: store.serverTime(), updatedBy: isAdm() ? user.email : (me?.name || user.email),
     };
     const size = new Blob([JSON.stringify(course)]).size;
     if (size > 950000) { await messageBox(`เนื้อหาใหญ่เกินไป (${Math.round(size / 1024)} KB)`, ["ลดจำนวนหรือขนาดรูปในใบความรู้", "หรือใช้รูปจากลิงก์แทนการแทรกไฟล์รูป"]); return; }
-    const keys = { video: Object.fromEntries(vs.map(x => [x.q.id, x.correct])), quiz: Object.fromEntries(zs.map(x => [x.q.id, x.correct])) };
+    const keys = { video: Object.fromEntries(vs.map(x => [x.q.id, x.correct])), quiz: Object.fromEntries(zs.map(x => [x.q.id, x.correct])), final: Object.fromEntries(fs.map(x => [x.q.id, x.correct])) };
     $("#save").disabled = true;
     try {
       await store.batch([{ type: "set", path: "courses/" + cid, data: course }, { type: "set", path: "keys/" + cid, data: keys }]);
@@ -627,6 +711,17 @@ async function pageCourseEdit(cid) {
     } catch (e) { console.error(e); toast("บันทึกไม่สำเร็จ: " + e.message, "bad"); }
     finally { $("#save").disabled = false; }
   };
+}
+
+// คะแนนเต็มของแต่ละส่วน (ทศนิยม .5 ได้)
+function fullOr(v, d, max = 60) {
+  if (v === undefined || v === null || v === "" || !Number.isFinite(Number(v))) return d;
+  return Math.max(0, Math.min(max, Math.round(Number(v) * 2) / 2));
+}
+
+function finalState(doc, key) {
+  return { title: doc?.final?.title || "", timeLimit: Number(doc?.final?.timeLimit) || 0, full: finalFullOf(doc), open: !!doc?.final?.open,
+    questions: (doc?.final?.questions || []).map(q => ({ ...q, correct: key?.final?.[q.id] ?? null })) };
 }
 
 function selectText(el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("เลือกข้อความแล้ว กด Ctrl+C เพื่อคัดลอก"); }
@@ -707,11 +802,11 @@ async function pageResults(cid) {
   $("#r").innerHTML = `<div class="row between"><h1>ผลคะแนน${seesAll() ? "" : " · กลุ่มของฉัน"}</h1>
       ${isAdm() ? `<div class="row"><button class="btn" id="csvAll">ดาวน์โหลด CSV ทุกวิชา</button><button class="btn primary" id="pubAll">คำนวณและประกาศคะแนนทุกวิชา</button></div>` : ""}</div>
     ${!isAdm() && !cl.length ? `<div class="notice">ยังไม่มีนักศึกษาในกลุ่มของคุณลงทะเบียนในภาคเรียนนี้</div>` : ""}
-    <p class="muted">${esc(semLabel(roster.sem))} · คะแนนออนไลน์เต็ม 10 (วิดีโอ ${CONFIG.videoFull} + แบบทดสอบ ${CONFIG.quizFull}) · คลิกวิชาเพื่อดูรายคน</p>
-    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th class="n">ลงทะเบียน</th><th class="n">เริ่มเรียน</th><th class="n">ส่งแบบทดสอบ</th><th class="n">เฉลี่ย /10</th><th>สถานะบทเรียน</th></tr></thead><tbody>
+    <p class="muted">${esc(semLabel(roster.sem))} · คะแนนเต็มของแต่ละวิชาตามที่ครูตั้ง · คลิกวิชาเพื่อดูรายคน</p>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th class="n">ลงทะเบียน</th><th class="n">เริ่มเรียน</th><th class="n">ส่งแบบทดสอบ</th><th class="n">เฉลี่ยกลางภาค</th><th class="n">เต็ม</th><th>สถานะบทเรียน</th></tr></thead><tbody>
     ${cl.map(c => { const rs = by[c.id] || [], co = courses[c.id];
       const sc = rs.map(r => computeScore(co, keys[c.id], r).total); const avg = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null;
-      return `<tr class="click" data-id="${esc(c.id)}"><td>${esc(c.code)}</td><td>${esc(c.name)}</td><td class="n">${(c.sids || []).filter(canSee).length}</td><td class="n">${rs.length}</td><td class="n">${rs.filter(r => r.quizAt).length}</td><td class="n">${avg === null ? "—" : fmtNum(avg)}</td>
+      return `<tr class="click" data-id="${esc(c.id)}"><td>${esc(c.code)}</td><td>${esc(c.name)}</td><td class="n">${(c.sids || []).filter(canSee).length}</td><td class="n">${rs.length}</td><td class="n">${rs.filter(r => r.quizAt).length}</td><td class="n">${avg === null ? "—" : fmtNum(avg)}</td><td class="n">${co ? fmtNum(midFulls(co).midFull) : "—"}</td>
       <td>${co?.published ? `<span class="chip brand">เปิดเรียน</span>` : co ? `<span class="chip warn">ฉบับร่าง</span>` : `<span class="chip">ยังไม่สร้าง</span>`}</td></tr>`; }).join("")}
     </tbody></table></div>`;
   $$("tr.click").forEach(tr => tr.onclick = () => location.hash = "#/results/" + encodeURIComponent(tr.dataset.id));
@@ -721,11 +816,11 @@ async function pageResults(cid) {
     await publishScores(results, courses, keys); pageResults();
   };
   $("#csvAll").onclick = () => {
-    const rows = [["รหัสนักศึกษา", "ชื่อ-สกุล", "กลุ่ม", "รหัสวิชา", "ชื่อวิชา", "วิดีโอ(5)", "แบบทดสอบ(5)", "รวม(10)", "ปัดเศษ"]];
+    const rows = [["รหัสนักศึกษา", "ชื่อ-สกุล", "กลุ่ม", "รหัสวิชา", "ชื่อวิชา", "วิดีโอ", "แบบทดสอบ", "รวมกลางภาค", "ปัดเศษ", "กลางภาคเต็ม"]];
     cl.forEach(c => (c.sids || []).forEach(sid => {
       const r = (by[c.id] || []).find(x => x.sid === sid); const s = roster.students[sid] || {};
       const sc = r ? computeScore(courses[c.id], keys[c.id], r) : null;
-      rows.push([sid, s.n, s.g, c.code, c.name, sc?.video ?? "", sc?.quiz ?? "", sc?.total ?? "", sc ? sc.itw : ""]);
+      rows.push([sid, s.n, s.g, c.code, c.name, sc?.video ?? "", sc?.quiz ?? "", sc?.total ?? "", sc ? sc.itw : "", courses[c.id] ? midFulls(courses[c.id]).midFull : ""]);
     }));
     download(`คะแนนออนไลน์_${roster.sem.replace("/", "-")}.csv`, toCSV(rows), "text/csv;charset=utf-8");
   };
@@ -734,7 +829,8 @@ async function pageResults(cid) {
 async function publishScores(results, courses, keys) {
   const ops = results.filter(r => courses[r.courseId]).map(r => {
     const s = computeScore(courses[r.courseId], keys[r.courseId], r);
-    return { type: "set", merge: true, path: "results/" + r.id, data: { score: { video: s.video, quiz: s.quiz, total: s.total, itw: s.itw, quizCorrect: s.quizCorrect, quizCount: s.quizCount, at: store.serverTime() } } };
+    return { type: "set", merge: true, path: "results/" + r.id, data: { score: { video: s.video, quiz: s.quiz, total: s.total, itw: s.itw, quizCorrect: s.quizCorrect, quizCount: s.quizCount, vFull: s.vFull, qFull: s.qFull, midFull: s.midFull,
+      ...(s.hasFinal && s.finalDone ? { final: s.final, finalItw: s.finalItw, finalCorrect: s.finalCorrect, finalCount: s.finalCount, finalFull: s.finalFull } : {}), at: store.serverTime() } } };
   });
   await store.batch(ops); toast(`ประกาศคะแนน ${ops.length} รายการแล้ว`, "ok");
 }
@@ -746,35 +842,41 @@ async function resultsCourse(cid) {
   const rows = (meta.sids || []).filter(canSee).map(sid => ({ sid, s: roster.students[sid] || {}, r: byS[sid], sc: byS[sid] ? computeScore(course, key, byS[sid]) : null }))
     .sort((a, b) => (a.s.g || "").localeCompare(b.s.g || "") || a.sid.localeCompare(b.sid));
   const vq = course?.video?.questions?.length || 0;
+  const fin = hasFinalExam(course), ffull = finalFullOf(course), ty = courseType(meta.code, course?.type), mf = midFulls(course);
+  const awayCell = (n, done) => n ? `<span class="chip ${n >= 3 ? "warn" : ""}" title="จำนวนครั้งที่ออกจากหน้าข้อสอบหรือกดแคปหน้าจอ">${n}</span>` : done ? "0" : "";
   $("#r").innerHTML = `<div class="crumb"><a href="#/results">← ผลคะแนนทุกวิชา</a></div>
-    <div class="row between"><div><div class="muted small">${esc(meta.code)} · ${esc(semLabel(roster.sem))}</div><h1 style="margin:0">${esc(meta.name)}</h1></div>
+    <div class="row between"><div><div class="muted small"><span class="type-tag ${ty}">${TYPE_LABEL[ty]}</span>${esc(meta.code)} · ${esc(semLabel(roster.sem))}</div><h1 style="margin:0">${esc(meta.name)}</h1></div>
     ${isAdm() ? `<div class="row"><button class="btn" id="csv">ดาวน์โหลด CSV</button><button class="btn primary" id="pub">คำนวณและประกาศคะแนน</button></div>` : `<span class="chip">${rows.length} คน${seesAll() ? "" : "ในกลุ่มของฉัน"}</span>`}</div>
     ${!course ? `<div class="notice warn" style="margin-top:10px">ยังไม่ได้สร้างบทเรียนวิชานี้</div>` : ""}
-    <div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ-สกุล</th><th>กลุ่ม</th><th class="n">ตอบคำถามวิดีโอ</th><th class="n">วิดีโอ /${CONFIG.videoFull}</th><th>ใบความรู้</th><th class="n">แบบทดสอบ /${CONFIG.quizFull}</th><th class="n">รวม /10</th><th>ประกาศแล้ว</th><th></th></tr></thead><tbody>
+    <div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ-สกุล</th><th>กลุ่ม</th>${mf.vFull ? `<th class="n">ตอบคำถามวิดีโอ</th><th class="n">วิดีโอ /${fmtNum(mf.vFull)}</th>` : ""}<th>ใบความรู้</th><th class="n">แบบทดสอบ /${fmtNum(mf.qFull)}</th><th class="n">กลางภาค /${fmtNum(mf.midFull)}</th><th class="n" title="จำนวนครั้งที่ออกจากหน้าข้อสอบหรือกดแคปหน้าจอระหว่างสอบ">ออกจากจอสอบ</th>${fin ? `<th class="n">ปลายภาค /${ffull}</th><th class="n">ออกจากจอ (ปลายภาค)</th>` : ""}<th>ประกาศแล้ว</th>${isAdm() ? "<th></th>" : ""}</tr></thead><tbody>
     ${rows.map(({ sid, s, r, sc }) => `<tr><td>${esc(sid)}</td><td>${esc(s.n)}</td><td>${esc(s.g)}</td>
-      <td class="n">${r ? `${Object.keys(r.video || {}).length}/${vq}` : "—"}</td><td class="n">${sc ? fmtNum(sc.video) : "—"}</td>
-      <td>${r?.articleAt ? "✓" : ""}</td><td class="n">${r?.quizAt ? fmtNum(sc.quiz) : "—"}</td><td class="n"><b>${sc ? fmtNum(sc.total) : "—"}</b></td>
-      <td>${r?.score ? `<span class="chip ok">${fmtNum(r.score.total)}</span>` : ""}</td>
-      <td>${r ? `<button class="btn sm ghost" data-reset="${esc(r.id)}">ล้างผล…</button>` : ""}</td></tr>`).join("")}
+      ${mf.vFull ? `<td class="n">${r ? `${Object.keys(r.video || {}).length}/${vq}` : "—"}</td><td class="n">${sc?.attempted ? fmtNum(sc.video) : "—"}</td>` : ""}
+      <td>${r?.articleAt ? "✓" : ""}</td><td class="n">${r?.quizAt ? fmtNum(sc.quiz) : "—"}</td><td class="n"><b>${sc?.attempted ? fmtNum(sc.total) : "—"}</b></td><td class="n">${awayCell(r?.qaway, r?.quizAt)}</td>
+      ${fin ? `<td class="n"><b>${r?.finAt ? fmtNum(sc.final) : "—"}</b></td><td class="n">${awayCell(r?.faway, r?.finAt)}</td>` : ""}
+      <td>${r?.score ? `<span class="chip ok">${fmtNum(r.score.total)}${r.score.final !== undefined ? " · " + fmtNum(r.score.final) : ""}</span>` : ""}</td>
+      ${isAdm() ? `<td>${r ? `<button class="btn sm ghost" data-reset="${esc(r.id)}">ล้างผล…</button>` : ""}</td>` : ""}</tr>`).join("")}
     </tbody></table></div>
-    <p class="small muted" style="margin-top:8px">คะแนนคำนวณจากเฉลยปัจจุบัน ถ้าแก้เฉลยภายหลัง กด "คำนวณและประกาศคะแนน" ใหม่อีกครั้ง</p>`;
+    <p class="small muted" style="margin-top:8px">คะแนนคำนวณจากเฉลยปัจจุบัน${isAdm() ? ` ถ้าแก้เฉลยภายหลัง กด "คำนวณและประกาศคะแนน" ใหม่อีกครั้ง` : " · การล้างผลให้นักศึกษาสอบใหม่ ติดต่อผู้ดูแลระบบ"}</p>`;
   if (isAdm()) $("#pub").onclick = async () => { await publishScores(results, { [cid]: course }, { [cid]: key }); resultsCourse(cid); };
   if (isAdm()) $("#csv").onclick = () => download(`คะแนน_${meta.code}_${roster.sem.replace("/", "-")}.csv`, toCSV([
-    ["รหัสนักศึกษา", "ชื่อ-สกุล", "กลุ่ม", "วิดีโอ(5)", "แบบทดสอบ(5)", "รวม(10)", "ปัดเศษ"],
-    ...rows.map(({ sid, s, sc }) => [sid, s.n, s.g, sc?.video ?? "", sc?.quiz ?? "", sc?.total ?? "", sc ? sc.itw : ""])]), "text/csv;charset=utf-8");
-  $$("[data-reset]").forEach(b => b.onclick = () => {
+    ["รหัสนักศึกษา", "ชื่อ-สกุล", "กลุ่ม", `วิดีโอ(${mf.vFull})`, `แบบทดสอบ(${mf.qFull})`, `รวม(${mf.midFull})`, "ปัดเศษ", "ออกจากจอสอบ(ครั้ง)", ...(fin ? [`ปลายภาค(${ffull})`, "ปลายภาคปัดเศษ", "ออกจากจอปลายภาค(ครั้ง)"] : [])],
+    ...rows.map(({ sid, s, r, sc }) => [sid, s.n, s.g, sc?.video ?? "", sc?.quiz ?? "", sc?.total ?? "", sc ? sc.itw : "", r?.qaway ?? "", ...(fin ? [r?.finAt ? sc.final : "", r?.finAt ? sc.finalItw : "", r?.faway ?? ""] : [])])]), "text/csv;charset=utf-8");
+  // ล้างผล (ให้สอบใหม่) — ผู้ดูแลระบบเท่านั้น
+  if (isAdm()) $$("[data-reset]").forEach(b => b.onclick = () => {
     const id = b.dataset.reset;
     const d = document.createElement("div"); d.className = "modal-back";
     d.innerHTML = `<div class="modal small"><h3>ล้างผลของนักศึกษา</h3><p class="small muted">ให้นักศึกษาทำใหม่ได้</p>
-      <label class="row"><input type="checkbox" id="rq" checked> ล้างแบบทดสอบ (ให้สอบใหม่)</label>
+      <label class="row"><input type="checkbox" id="rq" checked> ล้าง${fin ? "แบบทดสอบกลางภาค" : "แบบทดสอบ"} (ให้สอบใหม่)</label>
       <label class="row"><input type="checkbox" id="rv"> ล้างคำตอบวิดีโอ (ให้ดูใหม่)</label>
+      ${fin ? `<label class="row"><input type="checkbox" id="rf"> ล้างข้อสอบปลายภาค (ให้สอบปลายภาคใหม่)</label>` : ""}
       <div class="row end" style="margin-top:12px"><button class="btn ghost" data-x>ยกเลิก</button><button class="btn primary" id="ok">ล้างผล</button></div></div>`;
     document.body.appendChild(d);
     $("[data-x]", d).onclick = () => d.remove();
     $("#ok", d).onclick = async () => {
       const r = { ...byS[results.find(x => x.id === id).sid] }; delete r.id;
-      if ($("#rq", d).checked) { delete r.quiz; delete r.quizAt; delete r.qc; delete r.quizStartAt; }
+      if ($("#rq", d).checked) { delete r.quiz; delete r.quizAt; delete r.qc; delete r.quizStartAt; delete r.qaway; }
       if ($("#rv", d).checked) { delete r.video; delete r.videoDone; delete r.vc; }
+      if ($("#rf", d)?.checked) { delete r.fin; delete r.finAt; delete r.fc; delete r.finStartAt; delete r.faway; }
       delete r.score;
       await store.set("results/" + id, r, false); d.remove(); toast("ล้างผลแล้ว", "ok"); resultsCourse(cid);
     };
@@ -799,7 +901,7 @@ async function pageStudents() {
   const summary = sid => {
     const cids = byStu[sid] || [];
     let done = 0, sum = 0, nScored = 0;
-    for (const cid of cids) { const r = res[sid + "|" + cid]; if (!r) continue; if (r.quizAt) done++; const sc = computeScore(courses[cid], keys[cid], r); if (sc.attempted) { sum += sc.total; nScored++; } }
+    for (const cid of cids) { const r = res[sid + "|" + cid]; if (!r) continue; if (r.quizAt) done++; const sc = computeScore(courses[cid], keys[cid], r); if (sc.attempted && sc.midFull) { sum += sc.total / sc.midFull * 100; nScored++; } }
     return { n: cids.length, done, avg: nScored ? sum / nScored : null };
   };
   $("#st").innerHTML = `<div class="row between"><h1>นักศึกษาในกลุ่ม</h1></div>
@@ -811,7 +913,7 @@ async function pageStudents() {
   const draw = () => {
     const g = $("#gsel").value, q = $("#sq").value.trim().toLowerCase();
     const rows = all.filter(x => (!g || x.g === g) && (!q || (x.sid + x.n).toLowerCase().includes(q))).sort((a, b) => a.g.localeCompare(b.g) || a.sid.localeCompare(b.sid));
-    $("#sl").innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ-สกุล</th><th>กลุ่ม</th><th>ระดับ</th><th class="n">รายวิชา</th><th class="n">ส่งแบบทดสอบแล้ว</th><th class="n">คะแนนเฉลี่ย /10</th></tr></thead><tbody>
+    $("#sl").innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ-สกุล</th><th>กลุ่ม</th><th>ระดับ</th><th class="n">รายวิชา</th><th class="n">ส่งแบบทดสอบแล้ว</th><th class="n">กลางภาคเฉลี่ย (%)</th></tr></thead><tbody>
       ${rows.map(x => { const m = summary(x.sid); return `<tr class="click" data-sid="${esc(x.sid)}"><td>${esc(x.sid)}</td><td>${esc(x.n)}</td><td>${esc(x.g)}</td><td>${esc(LEVELS[x.l] || "")}</td>
         <td class="n">${m.n}</td><td class="n">${m.done ? `${m.done}/${m.n}` : `<span class="muted">0/${m.n}</span>`}</td><td class="n">${m.avg === null ? "—" : fmtNum(m.avg)}</td></tr>`; }).join("")}
       </tbody></table></div><p class="small muted" style="margin-top:6px">${rows.length} คน</p>`;
@@ -819,9 +921,10 @@ async function pageStudents() {
       const sid = tr.dataset.sid, x = roster.students[sid];
       const d = document.createElement("div"); d.className = "modal-back";
       d.innerHTML = `<div class="modal"><div class="row between"><div><div class="muted small">${esc(sid)} · กลุ่ม ${esc(x.g)}</div><h2 style="margin:0">${esc(x.n)}</h2></div><button class="btn ghost sm" data-x>ปิด</button></div>
-        <div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>รายวิชา</th><th class="n">วิดีโอ /5</th><th>ใบความรู้</th><th class="n">แบบทดสอบ /5</th><th class="n">รวม /10</th></tr></thead><tbody>
+        <div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>รายวิชา</th><th class="n">วิดีโอ</th><th>ใบความรู้</th><th class="n">แบบทดสอบ</th><th class="n">กลางภาค</th><th class="n">ปลายภาค</th></tr></thead><tbody>
         ${(byStu[sid] || []).map(cid => { const c = roster.courses[cid], r = res[sid + "|" + cid], sc = r ? computeScore(courses[cid], keys[cid], r) : null;
-          return `<tr><td>${esc(c.code)} ${esc(c.name)}${courses[cid]?.published ? "" : ` <span class="chip">ยังไม่เปิดบทเรียน</span>`}</td><td class="n">${sc && r.video ? fmtNum(sc.video) : "—"}</td><td>${r?.articleAt ? "✓" : ""}</td><td class="n">${r?.quizAt ? fmtNum(sc.quiz) : "—"}</td><td class="n"><b>${sc?.attempted ? fmtNum(sc.total) : "—"}</b></td></tr>`; }).join("")}
+          const ty = courseType(c.code, courses[cid]?.type);
+          return `<tr><td><span class="type-tag ${ty}">${TYPE_LABEL[ty]}</span>${esc(c.code)} ${esc(c.name)}${courses[cid]?.published ? "" : ` <span class="chip">ยังไม่เปิดบทเรียน</span>`}</td><td class="n">${sc && r.video ? `${fmtNum(sc.video)}<span class="muted small">/${fmtNum(sc.vFull)}</span>` : "—"}</td><td>${r?.articleAt ? "✓" : ""}</td><td class="n">${r?.quizAt ? `${fmtNum(sc.quiz)}<span class="muted small">/${fmtNum(sc.qFull)}</span>` : "—"}</td><td class="n">${sc?.attempted ? `<b>${fmtNum(sc.total)}</b><span class="muted small">/${fmtNum(sc.midFull)}</span>` : "—"}</td><td class="n">${!hasFinalExam(courses[cid]) ? `<span class="muted small">${ty === "elective" ? "—" : "ไม่มี"}</span>` : r?.finAt ? `<b>${fmtNum(sc.final)}</b><span class="muted small">/${sc.finalFull}</span>` : "—"}</td></tr>`; }).join("")}
         </tbody></table></div></div>`;
       document.body.appendChild(d); $("[data-x]", d).onclick = () => d.remove();
       d.addEventListener("click", e => { if (e.target === d) d.remove(); });
@@ -1383,7 +1486,7 @@ async function drawSemMgr() {
 // =================================================================== EXPORT → Excel (นำไปนำเข้าใน ITW51)
 async function pageExport() {
   app.innerHTML = shell("export", `<h1>ดาวน์โหลดคะแนน (Excel)</h1>
-    <p class="muted">${roster ? esc(semLabel(roster.sem)) : ""} · คะแนนออนไลน์เต็ม 10 (วิดีโอ ${CONFIG.videoFull} + แบบทดสอบ ${CONFIG.quizFull}) · ดาวน์โหลดเป็นไฟล์ Excel แล้วนำเข้าคะแนนกลางภาคใน ITW51</p>
+    <p class="muted">${roster ? esc(semLabel(roster.sem)) : ""} · คะแนนกลางภาคเต็มตามที่ครูตั้งในแต่ละวิชา (ค่าเริ่มต้น วิดีโอ ${CONFIG.videoFull} + แบบทดสอบ ${CONFIG.quizFull}) · วิชาเลือกมีคะแนนปลายภาคเพิ่ม (เต็มตามที่ครูตั้ง ปกติ ${DEFAULT_FINAL_FULL}) · ดาวน์โหลดเป็นไฟล์ Excel แล้วนำเข้าใน ITW51</p>
     <div id="ex"><div class="loading"><span class="spin"></span></div></div>`); bindShell();
   if (!needRoster()) return;
   const cl = courseList().filter(c => (c.sids || []).length);
@@ -1421,27 +1524,33 @@ async function pageExport() {
         const st = roster.students[sid]; if (!st || (g && st.g !== g)) continue;
         const r = res[sid + "|" + c.id];
         const sc = r ? computeScore(courses[c.id], keys[c.id], r) : null;
+        const ty = courseType(c.code, courses[c.id]?.type), fin = hasFinalExam(courses[c.id]), finDone = !!r?.finAt;
         const done = !!sc?.attempted;
-        if (!done && zero === "skip") continue;
+        if (!done && !finDone && zero === "skip") continue;
         const blank = !done && zero === "blank";
-        rows.push({ sid, std: CONFIG.schoolCode + sid, name: st.n, grp: st.g, level: LEVELS[st.l] || "", code: c.code, subject: c.name,
+        const fBlank = !finDone && zero !== "zero";
+        const status = (done ? (r.quizAt ? "ทำกลางภาคครบ" : "ทำกลางภาคบางส่วน") : "ยังไม่ทำกลางภาค") + (fin ? (finDone ? " · ส่งปลายภาคแล้ว" : " · ยังไม่สอบปลายภาค") : "");
+        rows.push({ sid, std: CONFIG.schoolCode + sid, name: st.n, grp: st.g, level: LEVELS[st.l] || "", code: c.code, subject: c.name, type: TYPE_LABEL[ty],
           video: blank ? "" : done ? sc.video : 0, quiz: blank ? "" : done ? sc.quiz : 0,
-          total: blank ? "" : done ? sc.total : 0, itw: blank ? "" : done ? sc.itw : 0, status: done ? (r.quizAt ? "ทำครบ" : "ทำบางส่วน") : "ยังไม่ทำ" });
+          total: blank ? "" : done ? sc.total : 0, itw: blank ? "" : done ? sc.itw : 0, midFull: courses[c.id] ? midFulls(courses[c.id]).midFull : "",
+          fin: !fin ? "" : fBlank ? "" : finDone ? sc.finalItw : 0, finFull: fin ? sc?.finalFull ?? finalFullOf(courses[c.id]) : "",
+          status, done: done || finDone });
       }
     }
     rows.sort((a, b) => a.code.localeCompare(b.code, "th") || a.grp.localeCompare(b.grp) || a.sid.localeCompare(b.sid));
     return rows;
   };
-  const HEAD = ["ลำดับ", "รหัสนักศึกษา", "ชื่อ-สกุล", "กลุ่ม", "ระดับ", "รหัสวิชา", "ชื่อวิชา", `วิดีโอ (${CONFIG.videoFull})`, `แบบทดสอบ (${CONFIG.quizFull})`, "รวม (10)", "คะแนนกลางภาค (ปัดเศษ)", "สถานะ"];
-  const toRow = (r, i) => [i + 1, r.sid, r.name, r.grp, r.level, r.code, r.subject, r.video, r.quiz, r.total, r.itw, r.status];
+  // คอลัมน์ 8–13 เป็นตัวเลข · ปลายภาคมีเฉพาะวิชาเลือกที่มีข้อสอบปลายภาค
+  const HEAD = ["ลำดับ", "รหัสนักศึกษา", "ชื่อ-สกุล", "กลุ่ม", "ระดับ", "รหัสวิชา", "ชื่อวิชา", "ประเภทวิชา", "วิดีโอ", "แบบทดสอบ", "รวมกลางภาค", "คะแนนกลางภาค (ปัดเศษ)", "กลางภาคเต็ม", "คะแนนปลายภาค (ปัดเศษ)", "ปลายภาคเต็ม", "สถานะ"];
+  const toRow = (r, i) => [i + 1, r.sid, r.name, r.grp, r.level, r.code, r.subject, r.type, r.video, r.quiz, r.total, r.itw, r.midFull, r.fin, r.finFull, r.status];
   const draw = () => {
     const rows = build();
-    const nSub = new Set(rows.map(r => r.code)).size, nDone = rows.filter(r => r.status !== "ยังไม่ทำ").length;
+    const nSub = new Set(rows.map(r => r.code)).size, nDone = rows.filter(r => r.done).length;
     $("#xs").innerHTML = rows.length ? `จะได้ <b>${rows.length.toLocaleString()}</b> แถว · ${nSub} รายวิชา · ทำออนไลน์แล้ว ${nDone.toLocaleString()} คน-วิชา` : "ไม่มีข้อมูลตามเงื่อนไขที่เลือก";
     $("#xd").disabled = !rows.length;
     $("#xprev").innerHTML = rows.length ? `<div class="small muted" style="margin-bottom:6px">ตัวอย่าง ${Math.min(rows.length, 30)} แถวแรก</div>
-      <div class="tbl-wrap"><table class="tbl"><thead><tr>${HEAD.map((h, i) => `<th class="${i >= 7 && i <= 10 ? "n" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>
-      ${rows.slice(0, 30).map((r, i) => `<tr>${toRow(r, i).map((v, j) => `<td class="${j >= 7 && j <= 10 ? "n" : ""}">${esc(typeof v === "number" && j >= 7 && j <= 9 ? fmtNum(v) : v)}</td>`).join("")}</tr>`).join("")}
+      <div class="tbl-wrap"><table class="tbl"><thead><tr>${HEAD.map((h, i) => `<th class="${i >= 8 && i <= 14 ? "n" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>
+      ${rows.slice(0, 30).map((r, i) => `<tr>${toRow(r, i).map((v, j) => `<td class="${j >= 8 && j <= 14 ? "n" : ""}">${esc(typeof v === "number" && j >= 8 && j <= 10 ? fmtNum(v) : v)}</td>`).join("")}</tr>`).join("")}
       </tbody></table></div>` : "";
   };
   ["xl", "xg", "xc", "xf", "xz", "xo"].forEach(id => $("#" + id).onchange = draw);
@@ -1455,7 +1564,7 @@ async function pageExport() {
       const wb = XLSX.utils.book_new();
       const mk = list => {
         const ws = XLSX.utils.aoa_to_sheet([HEAD, ...list.map(toRow)]);
-        ws["!cols"] = [6, 13, 26, 9, 18, 10, 30, 10, 12, 9, 12, 11].map(w => ({ wch: w }));
+        ws["!cols"] = [6, 13, 26, 9, 18, 10, 30, 11, 9, 10, 11, 12, 11, 12, 10, 30].map(w => ({ wch: w }));
         // รหัสนักศึกษาเป็นข้อความ (กันเลข 0 หน้าหาย)
         list.forEach((_, i) => { const a = XLSX.utils.encode_cell({ r: i + 1, c: 1 }); if (ws[a]) { ws[a].t = "s"; ws[a].z = "@"; } });
         return ws;

@@ -76,8 +76,8 @@ function demoStore() {
     async probeCount(path, base, field, max) {
       const rid = path.split("/")[1], cid = rid.split("__")[1];
       const r = read(path) || {}, k = read("keys/" + cid) || {};
-      const part = field === "vc" ? "video" : "quiz";
-      const n = Object.entries(r[part] || {}).filter(([q, v]) => k[part] && k[part][q] === v).length;
+      const [part, kpart] = ({ vc: ["video", "video"], qc: ["quiz", "quiz"], fc: ["fin", "final"] })[field];
+      const n = Object.entries(r[part] || {}).filter(([q, v]) => k[kpart] && k[kpart][q] === v).length;
       write(path, deepMerge(r, { ...base, [field]: Math.min(n, max) }));
       return Math.min(n, max);
     },
