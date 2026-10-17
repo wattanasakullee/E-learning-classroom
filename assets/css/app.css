@@ -346,3 +346,8 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .exam-shield .btn { margin-top: 10px; }
 /* สั่งพิมพ์ระหว่างทำข้อสอบ = หน้าว่าง */
 @media print { body.exam-guard * { visibility: hidden !important; } body.exam-guard { background: #fff !important; } }
+
+/* หัวข้อกลุ่มรายวิชา (วิชาบังคับ / วิชาเลือก) */
+.course-grid .grid-head { grid-column: 1 / -1; font-size: 1rem; font-weight: 600; margin: 8px 0 -4px; display: flex; align-items: center; gap: 4px; color: var(--ink-2); }
+.course-grid .grid-head:first-child { margin-top: 0; }
+.course-grid .grid-head .type-tag { font-size: .85rem; padding: 2px 12px; }
