@@ -116,9 +116,17 @@ async function renderClassroom(wanted) {
     Promise.all(ids.map(id => store.get("courses/" + id).catch(() => null))),
     Promise.all(ids.map(id => store.get("results/" + resultId(login.key, id)).catch(() => null))),
   ]);
-  $("#grid").innerHTML = ids.map((id, i) => {
+  // เรียง: วิชาบังคับก่อน แล้วตามด้วยวิชาเลือก (ภายในกลุ่มเรียงตามรหัสวิชา) พร้อมหัวข้อแต่ละกลุ่ม
+  const tyOf = i => courseType(term.subj?.[ids[i]]?.code || courses[i]?.code, courses[i]?.type);
+  const order = ids.map((_, i) => i).sort((a, b) => (tyOf(a) === "core" ? 0 : 1) - (tyOf(b) === "core" ? 0 : 1)
+    || String(term.subj?.[ids[a]]?.code || "").localeCompare(String(term.subj?.[ids[b]]?.code || ""), "th"));
+  const nCore = order.filter(i => tyOf(i) === "core").length, nElec = order.length - nCore;
+  const head = (ty, n) => `<h2 class="grid-head"><span class="type-tag ${ty}">${TYPE_LABEL[ty]}</span>${n} รายวิชา</h2>`;
+  $("#grid").innerHTML = order.map((i, k) => {
+    const id = ids[i];
     const s = term.subj?.[id] || {}, c = courses[i], r = results[i] || {};
-    const ty = courseType(s.code || c?.code, c?.type);
+    const ty = tyOf(i);
+    const sec = k === 0 ? head(ty, ty === "core" ? nCore : nElec) : k === nCore && nElec ? head("elective", nElec) : "";
     const ready = c && c.published;
     const vq = c?.video?.questions?.length || 0;
     const vDone = vq ? Object.keys(r.video || {}).filter(k => c.video.questions.some(q => q.id === k)).length : 0;
@@ -130,7 +138,7 @@ async function renderClassroom(wanted) {
       if (c.quiz?.questions?.length) chips += `<span class="chip ${r.quizAt ? "ok" : ""}">${ty === "elective" ? "กลางภาค" : "แบบทดสอบ"}${r.quizAt ? " ✓" : ""}</span>`;
       if (hasFinalExam(c) && (c.final.open || r.finAt)) chips += `<span class="chip ${r.finAt ? "ok" : ""}">ปลายภาค${r.finAt ? " ✓" : ""}</span>`;
     }
-    return `<a class="course-card ${ready ? "" : "empty"}" href="#/c/${encodeURIComponent(id)}">
+    return `${sec}<a class="course-card ${ready ? "" : "empty"}" href="#/c/${encodeURIComponent(id)}">
       ${(() => { const sc = c ? myScore(c, r) : null; return sc && sc.complete && sc.midFull ? `<span class="score-pill">${fmtNum(sc.total)}/${fmtNum(sc.midFull)}</span>` : ""; })()}
       <div class="code"><span class="type-tag ${ty}">${TYPE_LABEL[ty]}</span>${esc(s.code)}${s.credit ? " · " + esc(s.credit) + " หน่วยกิต" : ""}</div>
       <div class="name">${esc(s.name || s.code)}</div>
