@@ -311,3 +311,38 @@ body.no-scroll { overflow: hidden; }
 .quiz-timer.warn { background: var(--bad); color: #fff; animation: qt-pulse 1s ease-in-out infinite; }
 @keyframes qt-pulse { 50% { opacity: .82; } }
 @media (prefers-reduced-motion: reduce) { .quiz-timer.warn { animation: none; } }
+
+/* ---- ตราสัญลักษณ์ (แทนรูปหมวก) ---- */
+.logo { background: none; border-radius: 50%; }
+.logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.login-hero .big-logo { background: none; border-radius: 50%; }
+.login-hero .big-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* ---- ปุ่มดวงตา แสดง/ซ่อนรหัสผ่าน ---- */
+.pw-wrap input { padding-right: 46px; }
+.pw-wrap .eye { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border-radius: 8px; color: var(--ink-3); }
+.pw-wrap .eye:hover { color: var(--brand); background: var(--surface-2); }
+.pw-wrap .eye:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.pw-wrap .eye svg { width: 20px; height: 20px; }
+
+/* ---- ป้ายประเภทวิชา บังคับ / เลือก ---- */
+.type-tag { display: inline-block; font-size: .72rem; line-height: 1.5; padding: 0 8px; border-radius: 99px; margin-right: 6px; font-weight: 600; letter-spacing: 0; white-space: nowrap; vertical-align: 1px; }
+.type-tag.core { background: var(--brand-soft); color: var(--brand); }
+.type-tag.elective { background: var(--accent-soft); color: var(--warn); }
+
+/* ---- วิชาเลือก: 4 ขั้น (วิดีโอ ใบความรู้ กลางภาค ปลายภาค) ---- */
+.steps.four { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 720px) { .steps.four { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---- ป้องกันระหว่างทำข้อสอบ ---- */
+body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.exam-wm { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; color: rgba(23, 98, 74, .07);
+  font-size: .95rem; font-weight: 600; line-height: 3.2; word-spacing: 1.2em; transform: rotate(-24deg) scale(1.6); transform-origin: center; white-space: normal; text-align: center; }
+:root[data-theme="dark"] .exam-wm { color: rgba(255, 255, 255, .06); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .exam-wm { color: rgba(255, 255, 255, .06); } }
+.exam-shield { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: none; place-items: center; text-align: center; padding: 24px; }
+.exam-shield.on { display: grid; }
+.exam-shield p { color: #ddd; margin: 8px 0; }
+.exam-shield .btn { margin-top: 10px; }
+/* สั่งพิมพ์ระหว่างทำข้อสอบ = หน้าว่าง */
+@media print { body.exam-guard * { visibility: hidden !important; } body.exam-guard { background: #fff !important; } }
