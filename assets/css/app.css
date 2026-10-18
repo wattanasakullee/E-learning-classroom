@@ -336,10 +336,11 @@ body.no-scroll { overflow: hidden; }
 
 /* ---- ป้องกันระหว่างทำข้อสอบ ---- */
 body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.exam-wm { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; color: rgba(23, 98, 74, .07);
-  font-size: .95rem; font-weight: 600; line-height: 3.2; word-spacing: 1.2em; transform: rotate(-24deg) scale(1.6); transform-origin: center; white-space: normal; text-align: center; }
-:root[data-theme="dark"] .exam-wm { color: rgba(255, 255, 255, .06); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .exam-wm { color: rgba(255, 255, 255, .06); } }
+.exam-wm { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; border-radius: inherit; }
+.exam-wm > div { position: absolute; left: -50%; top: -50%; width: 200%; height: 200%; transform: rotate(-24deg);
+  color: rgba(23, 98, 74, .07); font-size: .95rem; font-weight: 600; line-height: 3.2; word-spacing: 1.2em; text-align: center; overflow: hidden; }
+:root[data-theme="dark"] .exam-wm > div { color: rgba(255, 255, 255, .06); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .exam-wm > div { color: rgba(255, 255, 255, .06); } }
 .exam-shield { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: none; place-items: center; text-align: center; padding: 24px; }
 .exam-shield.on { display: grid; }
 .exam-shield p { color: #ddd; margin: 8px 0; }
