@@ -381,3 +381,12 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 /* เนื้อหาหน้าผู้ดูแลไม่ล้นจอ (ตารางกว้างเลื่อนในกรอบตัวเอง) */
 .admin-layout > main { min-width: 0; }
 .tbl-wrap { max-width: 100%; overflow-x: auto; }
+
+/* ปุ่มเลือกแบบกลุ่ม (หน้า กำหนดเวลาสอบ) */
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { font: inherit; padding: 8px 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.seg button:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.seg button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.seg button.on .muted { color: rgba(255,255,255,.8); }
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
+.sched-form { position: sticky; bottom: 0; z-index: 5; box-shadow: 0 -6px 20px rgba(0,0,0,.08); }
