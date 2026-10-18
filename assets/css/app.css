@@ -351,3 +351,16 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .course-grid .grid-head { grid-column: 1 / -1; font-size: 1rem; font-weight: 600; margin: 8px 0 -4px; display: flex; align-items: center; gap: 4px; color: var(--ink-2); }
 .course-grid .grid-head:first-child { margin-top: 0; }
 .course-grid .grid-head .type-tag { font-size: .85rem; padding: 2px 12px; }
+
+/* ---- ใบความรู้แบบแบ่งหน้า ---- */
+.art-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.art-pager .btn { min-width: 116px; }
+.art-dots { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: center; }
+.art-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); display: inline-block; }
+.art-dots i.done { background: var(--brand-soft); outline: 1px solid var(--brand); }
+.art-dots i.on { background: var(--brand); width: 20px; border-radius: 99px; }
+.art-dots b { font-weight: 500; font-size: .85rem; color: var(--ink-2); margin-left: 6px; white-space: nowrap; }
+@media (max-width: 480px) { .art-pager .btn { min-width: 0; padding-left: 12px; padding-right: 12px; } .art-dots i { display: none; } .art-dots b { margin: 0; } }
+.article hr.page-break { display: none; }
+.editor hr.page-break { display: block; border: 0; border-top: 2px dashed var(--accent); margin: 22px 0; overflow: visible; height: 0; position: relative; }
+.editor hr.page-break::after { content: "ขึ้นหน้าใหม่"; position: absolute; left: 50%; top: -11px; transform: translateX(-50%); background: var(--surface); color: var(--warn); font-size: .75rem; padding: 0 8px; font-family: var(--font); }
