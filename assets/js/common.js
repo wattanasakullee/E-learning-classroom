@@ -55,19 +55,26 @@ export function fmtThaiDT(v, short = false) {
   const d = v ? new Date(v) : null; if (!d || isNaN(d)) return "";
   return `${d.getDate()} ${(short ? TH_MONTHS_SHORT : TH_MONTHS)[d.getMonth()]} ${d.getFullYear() + 543} ${short ? "" : "เวลา "}${pad2(d.getHours())}:${pad2(d.getMinutes())} น.`;
 }
-export function finalWindow(course, settings) {
-  const f = course?.final || {};
+// kind: "quiz" = สอบกลางภาค (แบบทดสอบ) · "final" = สอบปลายภาค (วิชาเลือก)
+// ตั้งเวลารายวิชาที่เมนู "กำหนดเวลาสอบ" (course.quiz/final.openAt, closeAt)
+export function examWindow(course, kind, settings) {
+  const f = course?.[kind] || {};
   if (f.openAt && f.closeAt) return { openAt: new Date(f.openAt), closeAt: new Date(f.closeAt), own: true };
-  const w = settings?.finalWindows?.[String(course?.sem || "").replace("/", "-")];
-  if (w?.openAt && w?.closeAt) return { openAt: new Date(w.openAt), closeAt: new Date(w.closeAt), own: false };
+  if (kind === "final") { // ช่วงเวลาของทั้งภาคเรียน (รุ่นก่อน)
+    const w = settings?.finalWindows?.[String(course?.sem || "").replace("/", "-")];
+    if (w?.openAt && w?.closeAt) return { openAt: new Date(w.openAt), closeAt: new Date(w.closeAt), own: false };
+  }
   return null;
 }
-// "none" = ยังไม่กำหนด · "before" = ยังไม่ถึงเวลา · "open" = เปิดสอบ · "after" = ปิดแล้ว
-export function finalStatus(course, settings, now = Date.now()) {
-  const w = finalWindow(course, settings);
-  if (!w) return "none";
+// "always" = ไม่ได้ตั้งเวลา ทำได้ตลอด (กลางภาค) · "none" = ยังไม่กำหนด ทำไม่ได้ (ปลายภาค)
+// "before" = ยังไม่ถึงเวลา · "open" = เปิดสอบ · "after" = ปิดแล้ว
+export function examStatus(course, kind, settings, now = Date.now()) {
+  const w = examWindow(course, kind, settings);
+  if (!w) return kind === "final" ? "none" : "always";
   return now < w.openAt.getTime() ? "before" : now > w.closeAt.getTime() ? "after" : "open";
 }
+export const finalWindow = (course, settings) => examWindow(course, "final", settings);
+export const finalStatus = (course, settings, now) => examStatus(course, "final", settings, now);
 export const finalFullOf = course => Number(course?.final?.full) > 0 ? Number(course.final.full) : (CONFIG.finalFull || DEFAULT_FINAL_FULL);
 // วิชาเลือกที่ครูสร้างข้อสอบปลายภาคไว้
 export const hasFinalExam = course => !!course && courseType(course.code, course.type) === "elective" && (course.final?.questions || []).length > 0;
@@ -119,7 +126,7 @@ export function confirmBox(message, okText = "ตกลง") {
   return new Promise(res => {
     const d = document.createElement("div");
     d.className = "modal-back";
-    d.innerHTML = `<div class="modal small"><p>${esc(message)}</p><div class="row end"><button class="btn ghost" data-v="0">ยกเลิก</button><button class="btn primary" data-v="1">${esc(okText)}</button></div></div>`;
+    d.innerHTML = `<div class="modal small"><p style="white-space:pre-line">${esc(message)}</p><div class="row end"><button class="btn ghost" data-v="0">ยกเลิก</button><button class="btn primary" data-v="1">${esc(okText)}</button></div></div>`;
     d.addEventListener("click", e => { const v = e.target.dataset?.v; if (v !== undefined) { d.remove(); res(v === "1"); } });
     document.body.appendChild(d);
   });

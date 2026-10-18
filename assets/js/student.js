@@ -1,6 +1,6 @@
 import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
-import { $, $$, esc, loginKey, semLabel, semShort, semId, semCompare, loginTerms, resultId, fmtTime, fmtNum, toast, confirmBox, LEVELS, demoBanner, safeStorage, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, midFulls, finalWindow, finalStatus, fmtThaiDT } from "./common.js";
+import { $, $$, esc, loginKey, semLabel, semShort, semId, semCompare, loginTerms, resultId, fmtTime, fmtNum, toast, confirmBox, LEVELS, demoBanner, safeStorage, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, midFulls, finalWindow, finalStatus, fmtThaiDT, examWindow, examStatus } from "./common.js";
 import { createPlayer, runInteractive } from "./player.js";
 
 const ICON_CAP = `<img src="assets/img/logo.png" alt="ตราสัญลักษณ์ ${esc(CONFIG.schoolName)}">`;
@@ -229,6 +229,10 @@ async function renderCourse(cid, tab) {
   const fStat = () => finalStatus(course, settings);
   const fWin = () => finalWindow(course, settings);
   const finalOpen = () => hasFinal && (fStat() === "open" || !!res.finAt);
+  // กลางภาค: ถ้าผู้ดูแลตั้งช่วงเวลาไว้ ทำได้เฉพาะในช่วงนั้น (ไม่ได้ตั้ง = ทำได้ตลอด)
+  const qStat = () => examStatus(course, "quiz", settings);
+  const qWin = () => examWindow(course, "quiz", settings);
+  const quizTimeOk = () => !!res.quizAt || qStat() === "always" || qStat() === "open";
   const finalSub = () => res.finAt ? "ส่งแล้ว" : ({ open: `เปิดถึง ${fmtThaiDT(fWin()?.closeAt, true)}`, before: `เปิด ${fmtThaiDT(fWin()?.openAt, true)}`, after: "ปิดสอบแล้ว", none: "ยังไม่เปิดสอบ" })[fStat()];
   const quizName = elective ? "สอบกลางภาค" : "แบบทดสอบ";
   const vAnswered = () => vqs.filter(q => res.video && res.video[q.id] !== undefined).length;
@@ -288,7 +292,7 @@ async function renderCourse(cid, tab) {
       <div class="steps ${hasFinal ? "four" : ""}">
         ${stepBtn("video", 1, "วิดีโอ", hasVideo ? `ตอบคำถาม ${vAnswered()}/${vqs.length}` : "ไม่มี")}
         ${stepBtn("article", 2, "ใบความรู้", hasArticle ? (res.articleAt ? "อ่านแล้ว" : "ยังไม่อ่าน") : "ไม่มี")}
-        ${stepBtn("quiz", 3, quizName, hasQuiz ? (res.quizAt ? "ส่งแล้ว" : quizLocked() ? "อ่านใบความรู้ก่อน" : "พร้อมทำ") : "ไม่มี", quizLocked())}
+        ${stepBtn("quiz", 3, quizName, hasQuiz ? (res.quizAt ? "ส่งแล้ว" : !quizTimeOk() ? (qStat() === "before" ? `เปิด ${fmtThaiDT(qWin()?.openAt, true)}` : "ปิดสอบแล้ว") : quizLocked() ? "อ่านใบความรู้ก่อน" : qStat() === "open" ? `เปิดถึง ${fmtThaiDT(qWin()?.closeAt, true)}` : "พร้อมทำ") : "ไม่มี", quizLocked() || !quizTimeOk())}
         ${hasFinal ? stepBtn("final", 4, "สอบปลายภาค", finalSub(), !finalOpen()) : ""}
       </div>
       <div id="pane"></div>`;
@@ -399,6 +403,14 @@ async function renderCourse(cid, tab) {
     const name = isFinal ? "ข้อสอบปลายภาค" : (def.title || quizName);
     const full = fmtNum(isFinal ? finalFullOf(course) : midFulls(course).qFull);
     if (!qs.length) { pane.innerHTML = `<div class="card"><p class="muted">รายวิชานี้ไม่มี${isFinal ? "ข้อสอบปลายภาค" : "แบบทดสอบ"}</p></div>`; return; }
+    if (!isFinal && !quizTimeOk()) {
+      const w = qWin(), s = qStat();
+      pane.innerHTML = `<div class="card final-closed"><h2><span class="num-badge">3</span>${esc(quizName)}</h2>
+        <p><b>${s === "after" ? `ปิด${quizName}แล้ว` : `ยังไม่ถึงเวลา${quizName}`}</b></p>
+        ${w ? `<p>เปิดสอบ: <b>${fmtThaiDT(w.openAt)}</b><br>ปิดสอบ: <b>${fmtThaiDT(w.closeAt)}</b></p>` : ""}
+        ${s === "after" ? `<p class="muted small">ไม่ได้ส่งภายในเวลาที่กำหนด กรุณาติดต่อครูประจำกลุ่ม</p>` : ""}</div>`;
+      return;
+    }
     if (!isFinal && quizLocked()) { pane.innerHTML = `<div class="card"><p>กรุณาอ่าน <b>ใบความรู้</b> ให้จบก่อน แล้วกดปุ่ม "อ่านจบแล้ว" เพื่อเปิด${quizName}</p><button class="btn primary" id="toArt">ไปที่ใบความรู้</button></div>`; $("#toArt").onclick = () => go("article"); return; }
     if (isFinal && !finalOpen()) {
       const w = fWin(), s = fStat();
@@ -423,12 +435,12 @@ async function renderCourse(cid, tab) {
         <h2 style="justify-content:center">${esc(name)}</h2>
         <p>${qs.length} ข้อ · คิดเป็น ${full} คะแนน · ส่งได้ครั้งเดียว</p>
         <div class="big" style="font-size:2.2rem">⏱ ${limitMin} นาที</div>
-        ${isFinal && fWin() ? `<p class="small">ปิดสอบ ${fmtThaiDT(fWin().closeAt)}</p>` : ""}
+        ${(isFinal ? fWin() : qWin()) ? `<p class="small">ปิดสอบ ${fmtThaiDT((isFinal ? fWin() : qWin()).closeAt)}</p>` : ""}
         <p class="muted small" style="margin-top:10px">เมื่อกดเริ่ม ระบบจะนับเวลาถอยหลัง และ<b>ส่งคำตอบอัตโนมัติเมื่อหมดเวลา</b><br>ถ้าทำเสร็จก่อน กดส่งเองได้ · ออกจากหน้านี้แล้วเวลายังเดินต่อ</p>
         <button class="btn primary" id="qstart" style="margin-top:8px">เริ่มทำ${isFinal ? "ข้อสอบปลายภาค" : quizName}</button></div>`;
       $("#qstart").onclick = async () => {
         if (!(await confirmBox(`เริ่มทำ${isFinal ? "ข้อสอบปลายภาค" : quizName}? มีเวลา ${limitMin} นาที`, "เริ่มเลย"))) return;
-        if (isFinal && fStat() !== "open") { toast("หมดเวลาสอบปลายภาคแล้ว", "bad"); draw(); return; }
+        if (isFinal ? fStat() !== "open" : !quizTimeOk()) { toast("ไม่อยู่ในช่วงเวลาสอบ", "bad"); draw(); return; }
         $("#qstart").disabled = true;
         try { const t0 = Date.now(); await save({ [X.start]: store.serverTime() }); SS.set(skewKey, String(new Date(res[X.start]).getTime() - t0)); drawExam(kind); }
         catch (err) { console.error(err); toast("เริ่มไม่สำเร็จ ลองอีกครั้ง", "bad"); $("#qstart").disabled = false; }
@@ -439,7 +451,7 @@ async function renderCourse(cid, tab) {
     pane.innerHTML = `<div class="card">
       ${limitMin ? `<div class="quiz-timer" id="qtimer" role="timer" aria-live="off"><span>⏱ เวลาที่เหลือ</span><b id="qtleft">--:--</b></div>` : ""}
       <h2><span class="num-badge">${X.n}</span>${esc(name)}</h2>
-      <p class="small muted">${qs.length} ข้อ · คิดเป็น ${full} คะแนน · ส่งได้ครั้งเดียว${limitMin ? ` · เวลา ${limitMin} นาที ส่งอัตโนมัติเมื่อหมดเวลา` : ""}${isFinal && fWin() && !limitMin ? ` · ส่งภายใน ${fmtThaiDT(fWin().closeAt)}` : ""}</p>
+      <p class="small muted">${qs.length} ข้อ · คิดเป็น ${full} คะแนน · ส่งได้ครั้งเดียว${limitMin ? ` · เวลา ${limitMin} นาที ส่งอัตโนมัติเมื่อหมดเวลา` : ""}${(isFinal ? fWin() : qWin()) && !limitMin ? ` · ส่งภายใน ${fmtThaiDT((isFinal ? fWin() : qWin()).closeAt)}` : ""}</p>
       <form id="qf">${qs.map((q, i) => `<div class="quiz-q"><div class="qn">${i + 1}. ${esc(q.text)}</div>
         <div class="choices">${q.choices.map((c, j) => `<label class="choice ${draft[q.id] === j ? "sel" : ""}"><input type="radio" name="${q.id}" value="${j}" ${draft[q.id] === j ? "checked" : ""}><span>${esc(c)}</span></label>`).join("")}</div></div>`).join("")}
       <div class="row between" style="margin-top:14px"><span class="muted small" id="qcount"></span><button class="btn primary" id="qsend">ส่งคำตอบ</button></div></form></div>`;
