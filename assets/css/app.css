@@ -391,3 +391,8 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .seg button.on .muted { color: rgba(255,255,255,.8); }
 .seg button:disabled { opacity: .45; cursor: not-allowed; }
 .sched-form { position: sticky; bottom: 0; z-index: 5; box-shadow: 0 -6px 20px rgba(0,0,0,.08); }
+
+/* หัวตารางค้างอยู่ด้านบนเวลาเลื่อนข้อมูล (ตารางเลื่อนในกรอบของตัวเอง) */
+.tbl-wrap { max-height: calc(100vh - 110px); max-height: calc(100dvh - 110px); overflow: auto; }
+.tbl th { z-index: 3; box-shadow: inset 0 -1px 0 var(--line); }
+.tbl-wrap.sched-tbl { max-height: calc(100vh - 340px); max-height: calc(100dvh - 340px); min-height: 220px; }
