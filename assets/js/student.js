@@ -201,7 +201,7 @@ async function renderCourse(cid, tab) {
   if (!term) { location.hash = "#/"; return; }
   const s = term.subj?.[cid] || {};
   app.innerHTML = `${topbar(login)}<main class="wrap narrow">
-    <div class="crumb"><a href="#/s/${term.id}">← ห้องเรียนของฉัน · ${esc(semShort(term.sem))}</a></div>
+    <a class="back-btn" href="#/s/${term.id}"><span class="arr" aria-hidden="true">←</span><span>กลับห้องเรียนของฉัน<small>${esc(semShort(term.sem))}</small></span></a>
     <div class="muted small"><span class="type-tag ${courseType(s.code)}" id="ctype">${TYPE_LABEL[courseType(s.code)]}</span>${esc(s.code)} · ${esc(semLabel(term.sem))}</div>
     <h1>${esc(s.name || s.code)}</h1>
     <div id="body"><div class="loading"><span class="spin"></span></div></div></main>`;
