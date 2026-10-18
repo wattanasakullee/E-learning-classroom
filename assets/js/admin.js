@@ -54,7 +54,7 @@ function bindEyes(root = document) {
 function shell(active, inner) {
   return `<header class="topbar"><div class="in">
     <div class="logo">${LOGO}</div>
-    <div><div class="brand-name">${esc(CONFIG.schoolName)} · ${isAdm() ? "ผู้ดูแลระบบ" : "ครูผู้สอน"}</div><div class="brand-sub">ห้องเรียนออนไลน์ ↔ ITW51</div></div>
+    <div><div class="brand-name">${esc(CONFIG.schoolName)} · ${isAdm() ? "ผู้ดูแลระบบ" : "ครูผู้สอน"}</div><div class="brand-sub">ห้องเรียนออนไลน์</div></div>
     <div class="spacer"></div>
     <div class="user"><div>${esc(me?.name || user.email)}</div>${!isAdm() && me?.allGroups ? `<div style="opacity:.7">ดูได้ทุกกลุ่ม</div>` : !isAdm() && me?.groups?.length ? `<div style="opacity:.7">กลุ่ม ${esc(me.groups.join(", "))}</div>` : ""}</div>
     ${me && !me.pwChanged ? `<button class="btn ghost sm" id="chPw">เปลี่ยนรหัสผ่าน</button>` : ""}
@@ -861,7 +861,7 @@ async function pageSchedule() {
       ${kind === "quiz" ? `<p class="hint" style="margin:0">สอบกลางภาค: วิชาที่<b>ไม่ได้กำหนดเวลา ทำได้ตลอด</b> (เมื่ออ่านใบความรู้แล้ว) · กำหนดเวลาแล้ว ทำได้เฉพาะในช่วงเวลานั้น</p>`
         : `<p class="hint" style="margin:0">สอบปลายภาค: วิชาที่<b>ยังไม่กำหนดเวลา นักศึกษาทำไม่ได้</b> · ถึงเวลาเปิดระบบเปิดให้อัตโนมัติ ถึงเวลาปิดปุ่มเป็นสีเทา</p>`}
     </div>
-    ${rows.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+    ${rows.length ? `<div class="tbl-wrap sched-tbl"><table class="tbl"><thead><tr>
       <th style="width:36px"><input type="checkbox" id="all" ${chosen.length === rows.length ? "checked" : ""} aria-label="เลือกทั้งหมด"></th>
       <th>รหัสวิชา</th><th>ชื่อวิชา</th><th>ประเภท</th><th class="n">นักศึกษา</th><th>ข้อสอบ${KIND[kind].replace("สอบ", "")}</th><th>ช่วงเวลา${KIND[kind]}</th><th>สถานะ</th></tr></thead><tbody>
       ${rows.map(c => { const d = { ...docs[c.id], sem: roster.sem }, w = examWindow(d, kind, settings), ty = tyOf(c);
