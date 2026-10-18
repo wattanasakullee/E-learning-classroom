@@ -47,6 +47,27 @@ export function courseType(code, override) {
   return m && m[1] !== "1" ? "elective" : "core";
 }
 export const DEFAULT_FINAL_FULL = 40;
+// ช่วงเวลาสอบปลายภาค (admin กำหนด): ตั้งเฉพาะวิชา (course.final.openAt/closeAt) หรือทั้งภาคเรียน (settings.finalWindows[semId])
+export const TH_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+export const TH_MONTHS_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const pad2 = n => String(n).padStart(2, "0");
+export function fmtThaiDT(v, short = false) {
+  const d = v ? new Date(v) : null; if (!d || isNaN(d)) return "";
+  return `${d.getDate()} ${(short ? TH_MONTHS_SHORT : TH_MONTHS)[d.getMonth()]} ${d.getFullYear() + 543} ${short ? "" : "เวลา "}${pad2(d.getHours())}:${pad2(d.getMinutes())} น.`;
+}
+export function finalWindow(course, settings) {
+  const f = course?.final || {};
+  if (f.openAt && f.closeAt) return { openAt: new Date(f.openAt), closeAt: new Date(f.closeAt), own: true };
+  const w = settings?.finalWindows?.[String(course?.sem || "").replace("/", "-")];
+  if (w?.openAt && w?.closeAt) return { openAt: new Date(w.openAt), closeAt: new Date(w.closeAt), own: false };
+  return null;
+}
+// "none" = ยังไม่กำหนด · "before" = ยังไม่ถึงเวลา · "open" = เปิดสอบ · "after" = ปิดแล้ว
+export function finalStatus(course, settings, now = Date.now()) {
+  const w = finalWindow(course, settings);
+  if (!w) return "none";
+  return now < w.openAt.getTime() ? "before" : now > w.closeAt.getTime() ? "after" : "open";
+}
 export const finalFullOf = course => Number(course?.final?.full) > 0 ? Number(course.final.full) : (CONFIG.finalFull || DEFAULT_FINAL_FULL);
 // วิชาเลือกที่ครูสร้างข้อสอบปลายภาคไว้
 export const hasFinalExam = course => !!course && courseType(course.code, course.type) === "elective" && (course.final?.questions || []).length > 0;

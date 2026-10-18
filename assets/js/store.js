@@ -8,6 +8,7 @@ export const isDemo = !CONFIG.firebase.apiKey;
 
 function stripServerTime(obj, iso) {
   if (obj === SERVER_TIME || (obj && obj.__serverTime)) return iso;
+  if (obj instanceof Date) return obj.toISOString();
   if (Array.isArray(obj)) return obj.map(v => stripServerTime(v, iso));
   if (obj && typeof obj === "object") {
     const o = {};
@@ -135,6 +136,7 @@ async function firebaseStore(opts = {}) {
   };
   const toFs = d => {
     if (d === SERVER_TIME || (d && d.__serverTime)) return fs.serverTimestamp();
+    if (d instanceof Date) return d; // บันทึกเป็น Timestamp
     if (Array.isArray(d)) return d.map(toFs);
     if (d && typeof d === "object") { const o = {}; for (const k in d) if (d[k] !== undefined) o[k] = toFs(d[k]); return o; }
     return d;

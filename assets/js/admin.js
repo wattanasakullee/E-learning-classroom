@@ -1,7 +1,7 @@
 import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
 import { DBF } from "./dbf.js";
-import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, DEFAULT_FINAL_FULL, midFulls } from "./common.js";
+import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, DEFAULT_FINAL_FULL, midFulls, finalWindow, finalStatus, fmtThaiDT, TH_MONTHS } from "./common.js";
 import { createPlayer } from "./player.js";
 
 const app = $("#app");
@@ -264,12 +264,14 @@ async function pageCourses() {
     <p class="muted">${roster ? esc(semLabel(roster.sem)) : ""} · คลิกรายวิชาเพื่อสร้างหรือแก้ไขบทเรียน</p>
     ${roster && !Object.keys(roster.students || {}).length ? `<div class="notice small" style="margin-bottom:12px"><b>เตรียมล่วงหน้า</b> — ภาคเรียนนี้ยังไม่ได้นำเข้าข้อมูล ITW51 เพิ่มรายวิชาและสร้างบทเรียนรอไว้ได้เลย
       เมื่อเปิดเทอมแล้ว <a href="#/import">นำเข้า ITW51</a> ระบบจะจับคู่ตามรหัสวิชา นักศึกษาเห็นเฉพาะวิชาที่ตนลงทะเบียน พร้อมบทเรียนที่เตรียมไว้</div>` : ""}
+    ${roster ? `<div id="finWin" style="margin-bottom:12px"></div>` : ""}
     <div class="row" style="margin-bottom:12px"><input type="text" id="q" placeholder="ค้นหารหัสหรือชื่อวิชา" style="max-width:320px">
       <select id="lv" style="max-width:220px"><option value="">ทุกระดับ</option>${Object.entries(LEVELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
       ${!seesAll() && me?.groups?.length ? `<label class="row small"><input type="checkbox" id="mine" checked> เฉพาะวิชาที่นักศึกษาในกลุ่มของฉันลงทะเบียน</label>` : ""}</div>
     <div id="list"><div class="loading"><span class="spin"></span></div></div>`); bindShell();
   if (!needRoster()) return;
   if ($("#addCourse")) $("#addCourse").onclick = () => addCoursesModal(() => pageCourses());
+  drawFinalWindowCard($("#finWin"));
   const cl = courseList();
   const docs = Object.fromEntries((await store.list("courses", [["sem", "==", roster.sem]])).map(c => [c.id, c]));
   const draw = () => {
@@ -285,7 +287,7 @@ async function pageCourses() {
         <td>${d?.video?.url ? `<span class="chip ok">${d.video.questions?.length || 0} คำถาม</span>` : `<span class="chip">—</span>`}</td>
         <td>${d?.article?.html ? `<span class="chip ok">มี</span>` : `<span class="chip">—</span>`}</td>
         <td>${d?.quiz?.questions?.length ? `<span class="chip ok">${d.quiz.questions.length} ข้อ</span>` : `<span class="chip">—</span>`}</td>
-        <td>${ty !== "elective" ? `<span class="muted small">ไม่มี</span>` : hasFinalExam(d) ? `<span class="chip ${d.final.open ? "brand" : "ok"}">${d.final.questions.length} ข้อ${d.final.open ? " · เปิดสอบ" : ""}</span>` : `<span class="chip">—</span>`}</td>
+        <td>${ty !== "elective" ? `<span class="muted small">ไม่มี</span>` : hasFinalExam(d) ? (s => `<span class="chip ${s === "open" ? "brand" : "ok"}">${d.final.questions.length} ข้อ${s === "open" ? " · เปิดสอบ" : s === "after" ? " · ปิดแล้ว" : ""}${finalWindow(d, settings)?.own ? " 📅" : ""}</span>`)(finalStatus(d, settings)) : `<span class="chip">—</span>`}</td>
         <td>${d?.published ? `<span class="chip brand">เปิดเรียนแล้ว</span>` : d ? `<span class="chip warn">ฉบับร่าง</span>` : `<span class="chip">ยังไม่สร้าง</span>`}</td>
         <td>${!n && isAdm() ? `<button class="btn sm ghost danger" data-del="${esc(c.id)}" title="ลบรายวิชาออกจากภาคเรียนนี้">ลบ</button>` : ""}</td></tr>`; }).join("")}
       </tbody></table></div>`;
@@ -398,6 +400,42 @@ function addCoursesModal(done) {
   };
   $$(".tabs button", d).forEach(b => b.onclick = () => { $$(".tabs button", d).forEach(x => x.classList.toggle("on", x === b)); tabs[b.dataset.t](); });
   tabs.type();
+}
+
+// ช่วงเวลาสอบปลายภาค (วิชาเลือก) ของทั้งภาคเรียน — admin กำหนด · ครูดูได้อย่างเดียว
+function drawFinalWindowCard(box) {
+  if (!box || !roster) return;
+  const sid = semId(roster.sem), w = settings?.finalWindows?.[sid];
+  const has = w?.openAt && w?.closeAt;
+  const stat = has ? finalStatus({ sem: roster.sem }, settings) : "none";
+  const badge = { open: `<span class="chip brand">กำลังเปิดสอบ</span>`, before: `<span class="chip warn">รอเปิดสอบ</span>`, after: `<span class="chip">ปิดสอบแล้ว</span>`, none: `<span class="chip">ยังไม่กำหนด</span>` }[stat];
+  const summary = has ? `เปิด <b>${fmtThaiDT(w.openAt)}</b> · ปิด <b>${fmtThaiDT(w.closeAt)}</b>` : "ยังไม่ได้กำหนดวันสอบ (นักศึกษายังทำข้อสอบปลายภาคไม่ได้)";
+  if (!isAdm()) { box.innerHTML = `<div class="notice small">📅 <b>สอบปลายภาค (วิชาเลือก) ${esc(semShort(roster.sem))}</b> ${badge} · ${summary} · กำหนดโดยผู้ดูแลระบบ</div>`; return; }
+  box.innerHTML = `<div class="card stack fin-win">
+    <div class="row between"><div><b>📅 ช่วงเวลาสอบปลายภาค (วิชาเลือก) · ${esc(semShort(roster.sem))}</b> ${badge}<div class="small muted">${summary}</div></div>
+      <button class="btn sm" id="fwToggle">${has ? "แก้ไขช่วงเวลา" : "กำหนดช่วงเวลา"}</button></div>
+    <div id="fwForm" class="stack hidden">
+      <div class="fw-row"><span class="fw-l">เปิดสอบ</span>${dtPicker("fwOpen", w?.openAt)}</div>
+      <div class="fw-row"><span class="fw-l">ปิดสอบ</span>${dtPicker("fwClose", w?.closeAt)}</div>
+      <p class="hint" style="margin:0">ถึงเวลาเปิด ระบบเปิดให้นักศึกษาทำข้อสอบปลายภาคของวิชาเลือกทุกวิชาในภาคเรียนนี้อัตโนมัติ · ถึงเวลาปิด ระบบปิดเอง (ปุ่มสอบปลายภาคเป็นสีเทา)
+        · วิชาที่สอบคนละวัน ตั้งเฉพาะวิชาได้ในหน้าแก้ไขบทเรียน แท็บ 4</p>
+      <div class="row end">${has ? `<button class="btn ghost danger" id="fwClear">ยกเลิกช่วงเวลา</button>` : ""}<button class="btn primary" id="fwSave">บันทึกช่วงเวลา</button></div>
+    </div></div>`;
+  $("#fwToggle", box).onclick = () => $("#fwForm", box).classList.toggle("hidden");
+  const put = async (val, msg) => {
+    await store.set("settings/app", { finalWindows: { [sid]: val } }, true);
+    settings = (await store.get("settings/app")) || settings; toast(msg, "ok"); drawFinalWindowCard(box);
+  };
+  $("#fwSave", box).onclick = async () => {
+    const a = readDT($("#fwOpen", box)), b = readDT($("#fwClose", box));
+    if (!a || !b) return toast(a === undefined || b === undefined ? "วันที่ไม่ถูกต้อง (เช่น 31 กุมภาพันธ์)" : "เลือกวันที่ เดือน พ.ศ. ให้ครบทั้งเปิดและปิด", "bad");
+    if (b <= a) return toast("เวลาปิดต้องหลังเวลาเปิด", "bad");
+    try { await put({ openAt: a, closeAt: b }, "บันทึกช่วงเวลาสอบปลายภาคแล้ว"); } catch (e) { toast("บันทึกไม่สำเร็จ: " + e.message, "bad"); }
+  };
+  if ($("#fwClear", box)) $("#fwClear", box).onclick = async () => {
+    if (!(await confirmBox("ยกเลิกช่วงเวลาสอบปลายภาคของภาคเรียนนี้? นักศึกษาจะทำข้อสอบปลายภาคไม่ได้จนกว่าจะกำหนดใหม่", "ยกเลิกช่วงเวลา"))) return;
+    try { await put({ openAt: null, closeAt: null }, "ยกเลิกช่วงเวลาแล้ว"); } catch (e) { toast("ไม่สำเร็จ: " + e.message, "bad"); }
+  };
 }
 
 // ------------------------------------------------------------------- editor
@@ -597,18 +635,40 @@ async function pageCourseEdit(cid) {
   const drawFinal = () => {
     const z = st.final;
     $("#pane").innerHTML = `<div class="card stack" style="margin-bottom:12px">
-      <div class="notice small" style="margin:0">ข้อสอบปลายภาคของ<b>วิชาเลือก</b> · นักศึกษาทำได้เมื่อครูติ๊ก "เปิดให้สอบปลายภาค" · ส่งได้ครั้งเดียว · คะแนนแยกจากกลางภาค (ส่งเข้า ITW51 ช่องปลายภาค)</div>
+      <div class="notice small" style="margin:0">ข้อสอบปลายภาคของ<b>วิชาเลือก</b> · นักศึกษาทำได้เฉพาะ<b>ช่วงเวลาที่ผู้ดูแลระบบกำหนด</b> (เปิด-ปิดอัตโนมัติ) · ส่งได้ครั้งเดียว · คะแนนแยกจากกลางภาค (ส่งเข้า ITW51 ช่องปลายภาค)</div>
       <div class="row" style="align-items:flex-end"><div class="grow" style="min-width:220px"><label class="f" for="ftitle">ชื่อข้อสอบ</label><input type="text" id="ftitle" value="${esc(z.title)}" placeholder="ข้อสอบปลายภาค"></div>
         <div style="width:150px"><label class="f" for="ffull">คะแนนเต็ม</label><input type="number" id="ffull" min="1" max="100" step="1" value="${z.full}"></div>
         <div style="width:150px"><label class="f" for="ftime">เวลาทำ (นาที)</label><input type="number" id="ftime" min="0" max="300" step="1" value="${z.timeLimit || 0}"></div></div>
-      <label class="row" style="gap:8px"><input type="checkbox" id="fopen" ${z.open ? "checked" : ""}> <span><b>เปิดให้สอบปลายภาค</b> <span class="muted small">(ติ๊กเมื่อถึงวันสอบ · เอาติ๊กออกเพื่อปิดรับ ผู้ที่ส่งแล้วยังเห็นคะแนน)</span></span></label>
+      <div id="fwin"></div>
       <div class="row"><span class="muted small">${z.questions.length} ข้อ = ${z.full} คะแนน (ข้อละ ${z.questions.length ? fmtNum(z.full / z.questions.length) : 0} คะแนน)</span><span class="grow"></span>
         <button class="btn" id="bulk">วางข้อสอบจากข้อความ</button><button class="btn accent" id="addQ">+ เพิ่มข้อ</button></div></div>
       <div id="zqs"></div>`;
     $("#ftitle").oninput = e => { z.title = e.target.value; mark(); };
     $("#ffull").onchange = e => { z.full = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || DEFAULT_FINAL_FULL))); markSum(); drawFinal(); };
     $("#ftime").oninput = e => { z.timeLimit = Math.max(0, Math.min(300, Math.round(Number(e.target.value) || 0))); mark(); };
-    $("#fopen").onchange = e => { z.open = e.target.checked; mark(); };
+    // ช่วงเวลาสอบ: admin กำหนด (ใช้ของภาคเรียน หรือเฉพาะวิชานี้) · ครูดูได้อย่างเดียว
+    const semW = settings?.finalWindows?.[semId(roster.sem)];
+    const semTxt = semW?.openAt && semW?.closeAt ? `${fmtThaiDT(semW.openAt)} – ${fmtThaiDT(semW.closeAt)}` : "ยังไม่กำหนด";
+    const own = !!(z.openAt && z.closeAt);
+    const cur = own ? `${fmtThaiDT(z.openAt)} – ${fmtThaiDT(z.closeAt)} (เฉพาะวิชานี้)` : `${semTxt} (ช่วงเวลาของภาคเรียน)`;
+    const stat = finalStatus({ sem: roster.sem, final: z }, settings);
+    const statChip = { open: `<span class="chip brand">กำลังเปิดสอบ</span>`, before: `<span class="chip warn">รอเปิดสอบ</span>`, after: `<span class="chip">ปิดสอบแล้ว</span>`, none: `<span class="chip">ยังไม่กำหนด</span>` }[stat];
+    if (!isAdm()) $("#fwin").innerHTML = `<div class="notice small" style="margin:0">📅 <b>ช่วงเวลาสอบ</b> ${statChip}<br>${cur}<br><span class="muted">ผู้ดูแลระบบเป็นผู้กำหนดวันเปิด-ปิดสอบ · ครูเพิ่มและแก้ไขข้อสอบได้</span></div>`;
+    else {
+      $("#fwin").innerHTML = `<div class="fin-win stack" style="padding:12px;border:1px solid var(--line);border-radius:12px">
+        <div><b>📅 ช่วงเวลาสอบ</b> ${statChip} <span class="small muted">${cur}</span></div>
+        <label class="row small" style="gap:8px"><input type="checkbox" id="fown" ${own ? "checked" : ""}> กำหนดช่วงเวลาเฉพาะวิชานี้ (ไม่ติ๊ก = ใช้ช่วงเวลาของภาคเรียน ตั้งที่หน้า "รายวิชา / บทเรียน")</label>
+        <div id="fownBox" class="stack ${own ? "" : "hidden"}">
+          <div class="fw-row"><span class="fw-l">เปิดสอบ</span>${dtPicker("fo", z.openAt)}</div>
+          <div class="fw-row"><span class="fw-l">ปิดสอบ</span>${dtPicker("fc", z.closeAt)}</div></div></div>`;
+      const sync = () => {
+        if (!$("#fown").checked) { z.openAt = null; z.closeAt = null; mark(); return; }
+        const a = readDT($("#fo")), b = readDT($("#fc"));
+        z.openAt = a || null; z.closeAt = b || null; mark();
+      };
+      $("#fown").onchange = () => { $("#fownBox").classList.toggle("hidden", !$("#fown").checked); sync(); };
+      $$("#fownBox select").forEach(s => s.onchange = sync);
+    }
     $("#zqs").innerHTML = z.questions.length ? z.questions.map((q, i) => qEditor(q, i, false)).join("") : `<div class="notice">ยังไม่มีข้อสอบปลายภาค</div>`;
     bindQ($("#zqs"), z.questions, false, () => drawFinal());
     drawSum();
@@ -663,7 +723,7 @@ async function pageCourseEdit(cid) {
       st.video = { url: c.video?.url || "", title: c.video?.title || "", desc: c.video?.desc || "", full: fullOr(c.video?.full, CONFIG.videoFull), questions: withKey(c.video?.questions, k?.video) };
       st.article = { title: c.article?.title || "", html: c.article?.html || "", attach: c.article?.attach || "" };
       st.quiz = { title: c.quiz?.title || "", timeLimit: Number(c.quiz?.timeLimit) || 0, full: fullOr(c.quiz?.full, CONFIG.quizFull), questions: withKey(c.quiz?.questions, k?.quiz) };
-      if (c.final?.questions?.length) st.final = { ...finalState(c, k), open: false };
+      if (c.final?.questions?.length) st.final = { ...finalState(c, k), openAt: st.final.openAt, closeAt: st.final.closeAt }; // ช่วงเวลาสอบไม่คัดลอก
       d.remove(); mark(); drawTabBar(); drawTab(); toast("คัดลอกแล้ว อย่าลืมกดบันทึก");
     };
   };
@@ -679,7 +739,10 @@ async function pageCourseEdit(cid) {
     check(st.video.questions, "คำถามวิดีโอ"); check(st.quiz.questions, "แบบทดสอบ");
     const elective = effType() === "elective";
     if (elective) check(st.final.questions, "ข้อสอบปลายภาค");
-    if (elective && st.final.open && !st.final.questions.length) probs.push("ติ๊กเปิดให้สอบปลายภาค แต่ยังไม่มีข้อสอบปลายภาค");
+    if (isAdm() && $("#fown")?.checked) {
+      if (!st.final.openAt || !st.final.closeAt) { await messageBox("ช่วงเวลาสอบปลายภาคเฉพาะวิชานี้ไม่ครบ", ["เลือกวันที่ เดือน พ.ศ. ของทั้งเปิดและปิดสอบ (แท็บ 4)", "หรือเอาติ๊ก \"กำหนดช่วงเวลาเฉพาะวิชานี้\" ออก"]); return; }
+      if (st.final.closeAt <= st.final.openAt) { await messageBox("เวลาปิดสอบต้องหลังเวลาเปิดสอบ", []); return; }
+    }
     if (!midFulls({ video: st.video, quiz: st.quiz }).midFull) probs.push("คะแนนกลางภาคเต็มเป็น 0 — ตั้งคะแนนส่วนวิดีโอหรือแบบทดสอบอย่างน้อย 1 ส่วน");
     if (st.published && probs.length) { await messageBox("ยังเปิดให้เรียนไม่ได้ แก้ไขรายการต่อไปนี้ก่อน", probs.slice(0, 12)); return; }
     if (st.published && st.video.url && !st.video.questions.length) toast("หมายเหตุ: วิดีโอยังไม่มีคำถาม จึงไม่นับคะแนนส่วนวิดีโอ", "");
@@ -697,7 +760,8 @@ async function pageCourseEdit(cid) {
       quiz: { title: st.quiz.title, timeLimit: st.quiz.timeLimit || 0, full: st.quiz.full, questions: zs.map(x => x.q) },
       type: st.type || null,
       // ข้อสอบปลายภาค (เก็บไว้แม้เปลี่ยนเป็นวิชาบังคับ แต่นักศึกษาจะไม่เห็น)
-      final: { title: st.final.title, timeLimit: st.final.timeLimit || 0, full: st.final.full, open: elective && !!st.final.open, questions: fs.map(x => x.q) },
+      final: { title: st.final.title, timeLimit: st.final.timeLimit || 0, full: st.final.full, questions: fs.map(x => x.q),
+        ...(st.final.openAt && st.final.closeAt ? { openAt: new Date(st.final.openAt), closeAt: new Date(st.final.closeAt) } : {}) },
       updatedAt: store.serverTime(), updatedBy: isAdm() ? user.email : (me?.name || user.email),
     };
     const size = new Blob([JSON.stringify(course)]).size;
@@ -714,6 +778,29 @@ async function pageCourseEdit(cid) {
   };
 }
 
+// ตัวเลือกวันที่-เวลาแบบไทย (วัน · เดือน · พ.ศ. · ชั่วโมง:นาที)
+function dtPicker(id, v) {
+  const d = v ? new Date(v) : null, ok = d && !isNaN(d);
+  const y0 = new Date().getFullYear(), years = [...new Set([y0 - 1, y0, y0 + 1, y0 + 2, ...(ok ? [d.getFullYear()] : [])])].sort();
+  const mins = [...new Set([...Array(12)].map((_, i) => i * 5).concat(ok ? [d.getMinutes()] : []))].sort((a, b) => a - b);
+  const o = (val, txt, sel) => `<option value="${val}" ${sel ? "selected" : ""}>${txt}</option>`;
+  return `<span class="dt-pick" id="${id}">
+    <select data-k="d" aria-label="วันที่"><option value="">วันที่</option>${[...Array(31)].map((_, i) => o(i + 1, i + 1, ok && d.getDate() === i + 1)).join("")}</select>
+    <select data-k="m" aria-label="เดือน"><option value="">เดือน</option>${TH_MONTHS.map((t, i) => o(i, t, ok && d.getMonth() === i)).join("")}</select>
+    <select data-k="y" aria-label="ปี พ.ศ."><option value="">พ.ศ.</option>${years.map(y => o(y, y + 543, ok && d.getFullYear() === y)).join("")}</select>
+    <span class="muted small">เวลา</span>
+    <select data-k="h" aria-label="ชั่วโมง">${[...Array(24)].map((_, i) => o(i, String(i).padStart(2, "0"), ok ? d.getHours() === i : i === 8)).join("")}</select><b>:</b>
+    <select data-k="i" aria-label="นาที">${mins.map(m => o(m, String(m).padStart(2, "0"), ok ? d.getMinutes() === m : m === 0)).join("")}</select>
+    <span class="muted small">น.</span></span>`;
+}
+// อ่านค่า: null = ไม่ได้เลือก · undefined = วันที่ไม่ถูกต้อง (เช่น 31 กุมภาพันธ์)
+function readDT(el) {
+  const g = k => el.querySelector(`[data-k=${k}]`).value;
+  if (g("d") === "" || g("m") === "" || g("y") === "") return null;
+  const d = new Date(+g("y"), +g("m"), +g("d"), +g("h"), +g("i"));
+  return d.getDate() === +g("d") ? d : undefined;
+}
+
 // คะแนนเต็มของแต่ละส่วน (ทศนิยม .5 ได้)
 function fullOr(v, d, max = 60) {
   if (v === undefined || v === null || v === "" || !Number.isFinite(Number(v))) return d;
@@ -721,7 +808,8 @@ function fullOr(v, d, max = 60) {
 }
 
 function finalState(doc, key) {
-  return { title: doc?.final?.title || "", timeLimit: Number(doc?.final?.timeLimit) || 0, full: finalFullOf(doc), open: !!doc?.final?.open,
+  return { title: doc?.final?.title || "", timeLimit: Number(doc?.final?.timeLimit) || 0, full: finalFullOf(doc),
+    openAt: doc?.final?.openAt ? new Date(doc.final.openAt) : null, closeAt: doc?.final?.closeAt ? new Date(doc.final.closeAt) : null,
     questions: (doc?.final?.questions || []).map(q => ({ ...q, correct: key?.final?.[q.id] ?? null })) };
 }
 

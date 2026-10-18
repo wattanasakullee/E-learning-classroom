@@ -2,7 +2,7 @@
 import { loginKey, courseId, resultId, computeScore, semId, teacherKey, teacherFirstKey, TEACHER_DOMAIN } from "./common.js";
 
 const SEM0 = "68/2", SEM = "69/1", SEM2 = "69/2"; // 68/2 จบแล้ว · 69/1 ปัจจุบัน · 69/2 เตรียมล่วงหน้า
-const SEED_VERSION = 8;
+const SEED_VERSION = 9;
 // กลุ่มสมมติ 2 กลุ่ม: 99/3 (ครูสมศรี) และ 98/3 (ครูประภา — ยังไม่มีบัญชี ใช้ทดลองสร้างจากรายชื่อที่ปรึกษา)
 const GROUPS = { "99/3": { name: "กลุ่มทดลอง ก (ข้อมูลสมมติ)", advisor: "ครูสมศรี มีสุข" }, "98/3": { name: "กลุ่มทดลอง ข (ข้อมูลสมมติ)", advisor: "นางประภา ดีงาม" } };
 const GROUP_OF = sid => (Number(sid.slice(-1)) <= 4 ? "99/3" : "98/3");
@@ -91,7 +91,9 @@ export async function seedDemo(store) {
   // 69/2 เตรียมล่วงหน้า: มีรายวิชาแต่ยังไม่มีนักศึกษาลงทะเบียน
   ops.push({ type: "set", path: "admin/roster-" + semId(SEM2), data: { sem: SEM2, demo: true, prepared: true, students: {},
     courses: Object.fromEntries(SUBJECTS2.map(([code, name, credit]) => [courseId(SEM2, code), { code, name, level: "3", credit, sids: [], manual: true }])) } });
-  ops.push({ type: "set", path: "settings/app", data: { semesters: [SEM0, SEM, SEM2], current: SEM, semester: SEM, demo: true, seedVersion: SEED_VERSION } });
+  ops.push({ type: "set", path: "settings/app", data: { semesters: [SEM0, SEM, SEM2], current: SEM, semester: SEM, demo: true, seedVersion: SEED_VERSION,
+    // ช่วงเวลาสอบปลายภาค (วิชาเลือก) ภาคเรียน 1/2569: เปิดแล้ว ปิดอีก 30 วัน
+    finalWindows: { [semId(SEM)]: { openAt: new Date(Date.now() - 864e5).toISOString(), closeAt: new Date(Date.now() + 30 * 864e5).toISOString() } } } });
   // บัญชีครูทดลอง (ชื่อผู้ใช้ = ชื่อ-สกุล, รหัสผ่าน = เบอร์โทร)
   for (const [name, phone, groups, realEmail] of DEMO_TEACHERS) {
     const email = realEmail || `demo${phone}@${TEACHER_DOMAIN}`;
@@ -158,7 +160,7 @@ export async function seedDemo(store) {
       { id: "q1", text: "หลอดไฟชนิดใดประหยัดไฟที่สุด", choices: ["หลอดไส้", "หลอด LED", "หลอดฮาโลเจน"] },
       { id: "q2", text: "ควรตั้งเครื่องปรับอากาศที่กี่องศาเพื่อประหยัดไฟ", choices: ["18–20 องศา", "25–26 องศา", "30 องศา"] },
     ] },
-    final: { title: "ข้อสอบปลายภาค", timeLimit: 0, full: 40, open: true, questions: [
+    final: { title: "ข้อสอบปลายภาค", timeLimit: 0, full: 40, questions: [
       { id: "f1", text: "เครื่องใช้ไฟฟ้าใดกินไฟมากที่สุด", choices: ["พัดลม", "เตารีด", "หลอด LED", "วิทยุ"] },
       { id: "f2", text: "ฉลากประหยัดไฟเบอร์ใดประหยัดที่สุด", choices: ["เบอร์ 1", "เบอร์ 3", "เบอร์ 5"] },
       { id: "f3", text: "ข้อใดเป็นการประหยัดไฟที่ถูกต้อง", choices: ["เปิดตู้เย็นบ่อย ๆ", "ถอดปลั๊กเมื่อเลิกใช้", "เปิดไฟทิ้งไว้ทั้งคืน"] },
