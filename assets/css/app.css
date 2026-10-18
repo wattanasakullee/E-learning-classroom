@@ -365,3 +365,19 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .article hr.page-break { display: none; }
 .editor hr.page-break { display: block; border: 0; border-top: 2px dashed var(--accent); margin: 22px 0; overflow: visible; height: 0; position: relative; }
 .editor hr.page-break::after { content: "ขึ้นหน้าใหม่"; position: absolute; left: 50%; top: -11px; transform: translateX(-50%); background: var(--surface); color: var(--warn); font-size: .75rem; padding: 0 8px; font-family: var(--font); }
+
+/* จำนวนครั้งที่ออกจากหน้าข้อสอบ (บนจอดำ) */
+.exam-shield #shcnt { color: #ff5c5c; font-weight: 700; font-size: 1rem; }
+/* ปลายภาคยังไม่เปิด / ปิดแล้ว */
+.step.locked .s { color: var(--ink-3); }
+.final-closed { background: var(--surface-2); }
+
+/* ตัวเลือกวันที่-เวลา (พ.ศ.) ช่วงเวลาสอบปลายภาค */
+.dt-pick { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dt-pick select { width: auto; min-width: 0; padding-right: 26px; }
+.fw-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.fw-row .fw-l { width: 64px; font-weight: 600; }
+
+/* เนื้อหาหน้าผู้ดูแลไม่ล้นจอ (ตารางกว้างเลื่อนในกรอบตัวเอง) */
+.admin-layout > main { min-width: 0; }
+.tbl-wrap { max-width: 100%; overflow-x: auto; }
