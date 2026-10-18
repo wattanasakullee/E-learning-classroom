@@ -371,21 +371,90 @@ async function renderCourse(cid, tab) {
   };
 
   // ---------- article
-  const drawArticle = () => {
+  const drawArticle = async () => {
     const pane = $("#pane");
     if (!hasArticle) { pane.innerHTML = `<div class="card"><p class="muted">รายวิชานี้ไม่มีใบความรู้</p></div>`; return; }
-    pane.innerHTML = `<div class="card">
+    // ใบความรู้แบ่งเป็นหน้า ๆ ให้พอดีจอ: ข้อมูลเยอะกด "ถัดไป" จนหน้าสุดท้าย แล้วจึงไปทำแบบทดสอบได้
+    // (ครูกำหนดจุดขึ้นหน้าใหม่เองได้ด้วยปุ่ม "ขึ้นหน้าใหม่" ในหน้าแก้ไขใบความรู้)
+    pane.innerHTML = `<div class="card" id="artCard">
       <h2><span class="num-badge">2</span>${esc(course.article.title || "ใบความรู้")}</h2>
-      <div class="article">${course.article.html}</div>
-      ${course.article.attach ? `<p><a class="btn" href="${esc(course.article.attach)}" target="_blank" rel="noopener">📄 เปิดเอกสารประกอบ</a></p>` : ""}
-      <hr style="border:0;border-top:1px solid var(--line);margin:20px 0">
-      <div class="row between"><span class="muted small">${res.articleAt ? "คุณอ่านใบความรู้นี้แล้ว" : `อ่านให้จบแล้วกดปุ่มเพื่อไป${quizName}`}</span>
-      <button class="btn primary" id="readDone">${res.articleAt ? `ไป${quizName} →` : `อ่านจบแล้ว ไป${quizName} →`}</button></div>
+      <div class="article" id="art"><div class="loading"><span class="spin"></span></div></div>
+      <div id="artNav"></div>
     </div>`;
-    $("#readDone").onclick = async () => {
-      try { if (!res.articleAt) await save({ articleAt: store.serverTime() }); } catch { toast("บันทึกไม่สำเร็จ", "bad"); return; }
-      go("quiz");
+    const src = document.createElement("div"); src.innerHTML = course.article.html;
+    // รอรูปโหลดก่อน เพื่อวัดความสูงได้ถูกต้อง
+    await Promise.all([...src.querySelectorAll("img")].map(img => new Promise(ok => {
+      const i = new Image(); i.onload = i.onerror = ok; i.src = img.getAttribute("src") || ""; setTimeout(ok, 4000);
+    })));
+    if (!$("#art")) return;
+    const art = $("#art");
+    const pageKey = "artpage:" + rid;
+    let pages = [], page = 0;
+    const paginate = () => {
+      const max = Math.max(340, window.innerHeight - 290);
+      const meas = document.createElement("div");
+      meas.className = "article";
+      meas.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;width:${art.clientWidth}px;padding:1px 0`;
+      document.body.appendChild(meas);
+      const h = node => { meas.innerHTML = ""; meas.appendChild(node.cloneNode(true)); return meas.scrollHeight; };
+      // แยกเนื้อหาเป็นก้อน ๆ (ย่อหน้า หัวข้อ รูป ตาราง) · กล่องที่ยาวเกินจอจะถูกแยกย่อยข้างใน
+      const blocks = [];
+      const walk = parent => {
+        for (const n of [...parent.childNodes]) {
+          if (n.nodeType === 3) { if (n.textContent.trim()) { const p = document.createElement("p"); p.textContent = n.textContent; blocks.push(p); } continue; }
+          if (n.nodeType !== 1) continue;
+          if (n.matches("hr.page-break")) { blocks.push("BREAK"); continue; }
+          if (/^(DIV|SECTION|ARTICLE|MAIN)$/.test(n.tagName) && n.children.length > 1 && (n.querySelector("hr.page-break") || h(n) > max)) { walk(n); continue; }
+          blocks.push(n);
+        }
+      };
+      walk(src);
+      pages = []; let cur = []; meas.innerHTML = "";
+      for (const b of blocks) {
+        if (b === "BREAK") { if (cur.length) { pages.push(cur); cur = []; meas.innerHTML = ""; } continue; }
+        meas.appendChild(b.cloneNode(true));
+        if (cur.length && meas.scrollHeight > max) { pages.push(cur); cur = []; meas.innerHTML = ""; meas.appendChild(b.cloneNode(true)); }
+        cur.push(b);
+      }
+      if (cur.length) pages.push(cur);
+      if (!pages.length) pages = [[]];
+      meas.remove();
     };
+    const seen = () => res.articleAt || page >= pages.length - 1;
+    const show = (scroll) => {
+      page = Math.max(0, Math.min(page, pages.length - 1));
+      SS.set(pageKey, String(page));
+      art.innerHTML = ""; pages[page].forEach(n => art.appendChild(n.cloneNode(true)));
+      const last = page === pages.length - 1, multi = pages.length > 1;
+      $("#artNav").innerHTML = `
+        ${last && course.article.attach ? `<p><a class="btn" href="${esc(course.article.attach)}" target="_blank" rel="noopener">📄 เปิดเอกสารประกอบ</a></p>` : ""}
+        ${multi ? `<div class="art-pager">
+          <button class="btn" id="artPrev" ${page === 0 ? "disabled" : ""}>← ก่อนหน้า</button>
+          <span class="art-dots" aria-label="หน้า ${page + 1} จาก ${pages.length}">${pages.map((_, i) => `<i class="${i === page ? "on" : i < page ? "done" : ""}"></i>`).join("")}<b>หน้า ${page + 1} / ${pages.length}</b></span>
+          ${last ? `<span></span>` : `<button class="btn primary" id="artNext">ถัดไป →</button>`}</div>` : ""}
+        ${seen() ? `<hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+          <div class="row between"><span class="muted small">${res.articleAt ? "คุณอ่านใบความรู้นี้แล้ว" : `อ่านครบแล้ว กดปุ่มเพื่อไป${quizName}`}</span>
+          <button class="btn primary" id="readDone">${res.articleAt ? `ไป${quizName} →` : `อ่านจบแล้ว ไป${quizName} →`}</button></div>`
+        : `<p class="muted small" style="text-align:center;margin:12px 0 0">อ่านให้ครบทุกหน้า แล้วจึงไป${quizName}ได้</p>`}`;
+      if ($("#artPrev")) $("#artPrev").onclick = () => { page--; show(true); };
+      if ($("#artNext")) $("#artNext").onclick = () => { page++; show(true); };
+      if ($("#readDone")) $("#readDone").onclick = async () => {
+        try { if (!res.articleAt) await save({ articleAt: store.serverTime() }); } catch { toast("บันทึกไม่สำเร็จ", "bad"); return; }
+        go("quiz");
+      };
+      if (scroll) $("#artCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    paginate();
+    page = Number(SS.get(pageKey) || 0);
+    show(false);
+    // หมุนจอ/ปรับขนาดหน้าต่าง → แบ่งหน้าใหม่ (คงตำแหน่งที่อ่านอยู่โดยประมาณ)
+    let rt;
+    const onResize = () => { clearTimeout(rt); rt = setTimeout(() => {
+      if (!document.body.contains(art)) { window.removeEventListener("resize", onResize); return; }
+      const ratio = pages.length > 1 ? page / (pages.length - 1) : 0;
+      paginate(); page = Math.round(ratio * (pages.length - 1)); show(false);
+    }, 300); };
+    window.addEventListener("resize", onResize);
   };
 
   // ---------- ข้อสอบ (แบบทดสอบ/กลางภาค และ ปลายภาค ใช้หน้าจอเดียวกัน)

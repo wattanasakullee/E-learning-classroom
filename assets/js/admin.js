@@ -564,11 +564,11 @@ async function pageCourseEdit(cid) {
         <button data-cmd="formatBlock" data-v="blockquote">❝ กล่องเน้น</button>
         <button data-cmd="justifyCenter">จัดกลาง</button>
         <button data-a="link">🔗 ลิงก์</button><button data-a="img">🖼 รูปภาพ</button><button data-a="imgurl">🖼 รูปจากลิงก์</button>
-        <button data-cmd="removeFormat">ล้างรูปแบบ</button><button data-cmd="undo">↶</button>
+        <button data-a="pb" title="แบ่งหน้า: นักศึกษาต้องกด ถัดไป เพื่ออ่านต่อ">⤓ ขึ้นหน้าใหม่</button><button data-cmd="removeFormat">ล้างรูปแบบ</button><button data-cmd="undo">↶</button>
       </div><div class="editor article" id="ed" contenteditable="true">${a.html}</div>
       <input type="file" id="imgf" accept="image/*" class="hidden"></div>
       <div><label class="f">ลิงก์เอกสารประกอบ (ไม่บังคับ เช่น PDF บน Google Drive)</label><input type="url" id="aatt" value="${esc(a.attach)}" placeholder="https://drive.google.com/..."></div>
-      <p class="hint">สามารถคัดลอกเนื้อหาจาก Word มาวางได้ · รูปภาพจะถูกย่อขนาดอัตโนมัติ (ควรใส่ไม่เกิน 5–6 รูปต่อใบความรู้)</p></div>`;
+      <p class="hint">ใบความรู้ที่ยาว ระบบแบ่งหน้าให้พอดีจอนักศึกษาอัตโนมัติ (มีปุ่ม "ถัดไป") · ต้องการกำหนดจุดขึ้นหน้าใหม่เอง กดปุ่ม "⤓ ขึ้นหน้าใหม่" · สามารถคัดลอกเนื้อหาจาก Word มาวางได้ · รูปภาพจะถูกย่อขนาดอัตโนมัติ (ควรใส่ไม่เกิน 5–6 รูปต่อใบความรู้)</p></div>`;
     const ed = $("#ed");
     ed.oninput = () => { a.html = ed.innerHTML; mark(); };
     $("#atitle").oninput = e => { a.title = e.target.value; mark(); };
@@ -577,6 +577,7 @@ async function pageCourseEdit(cid) {
     $$(".toolbar button[data-cmd]").forEach(b => b.onclick = () => { ed.focus(); document.execCommand(b.dataset.cmd, false, b.dataset.v || null); a.html = ed.innerHTML; mark(); });
     $$(".toolbar button[data-a]").forEach(b => b.onclick = async () => {
       if (b.dataset.a === "img") { $("#imgf").click(); return; }
+      if (b.dataset.a === "pb") { ed.focus(); document.execCommand("insertHTML", false, `<hr class="page-break"><p><br></p>`); a.html = ed.innerHTML; mark(); return; }
       const sel = window.getSelection();
       const range = sel.rangeCount && ed.contains(sel.anchorNode) ? sel.getRangeAt(0).cloneRange() : null;
       const u = await inputBox(b.dataset.a === "link" ? "ใส่ลิงก์ (https://...)" : "ลิงก์รูปภาพ (https://...)");
