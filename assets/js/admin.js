@@ -2,6 +2,7 @@ import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
 import { DBF } from "./dbf.js";
 import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, DEFAULT_FINAL_FULL, midFulls, finalWindow, finalStatus, fmtThaiDT, TH_MONTHS, examWindow, examStatus } from "./common.js";
+import { transcript, summaryOf, subjectOf, semGpa, gradeInfo, VIRTUE, semKey } from "./transcript.js";
 import { createPlayer } from "./player.js";
 
 const app = $("#app");
@@ -29,6 +30,7 @@ const NAV = [
   ["schedule", "กำหนดเวลาสอบ", "⏰", "admin"],
   ["students", "นักศึกษาในกลุ่ม", "☺", "all"],
   ["results", "ผลคะแนน", "✓", "all"],
+  ["profiles", "ข้อมูลนักศึกษา", "☷", "all"],
   ["teachers", "ครูผู้สอน", "♟", "admin"],
   ["groups", "กลุ่มเรียน / ครูประจำกลุ่ม", "▦", "admin"],
   ["export", "ดาวน์โหลดคะแนน (Excel)", "⇪", "admin"],
@@ -224,6 +226,7 @@ async function pageDash() {
           <li><a href="#/courses">รายวิชา / บทเรียน</a> — เพิ่มและแก้ไขวิดีโอ คำถาม ใบความรู้ แบบทดสอบ แล้วกด "เปิดให้นักศึกษาเรียน"</li>
           <li><a href="#/students">นักศึกษาในกลุ่ม</a> — ดูความก้าวหน้าและคะแนนของนักศึกษาในกลุ่มของตนเอง</li>
           <li><a href="#/results">ผลคะแนน</a> — ดูคะแนนรายวิชาของนักศึกษาในกลุ่มของตนเอง</li>
+          <li><a href="#/profiles">ข้อมูลนักศึกษา</a> — ผลการเรียนทุกภาคเรียน เกรดเฉลี่ย ชั่วโมง กพช. และคุณสมบัติการจบ</li>
         </ol>
         <p class="small muted" style="margin:10px 0 0">การล้างผลให้นักศึกษาสอบใหม่ ดาวน์โหลดคะแนน และจัดการภาคเรียน เป็นสิทธิ์ของผู้ดูแลระบบ</p></div>`;
     return;
@@ -1060,6 +1063,101 @@ async function pageStudents() {
   $("#gsel").onchange = draw; $("#sq").oninput = draw; draw();
 }
 
+// =================================================================== ข้อมูลนักศึกษา (ผลการเรียน · เกรดเฉลี่ย · กพช. · คุณสมบัติการจบ)
+async function pageProfiles(sidArg) {
+  app.innerHTML = shell("profiles", `<div id="pf"><div class="loading"><span class="spin"></span></div></div>`); bindShell();
+  if (!needRoster()) return;
+  if (sidArg) return profileDetail(sidArg);
+  const doc = await store.get("admin/profiles-" + semId(roster.sem)).catch(() => null);
+  const all = Object.entries(roster.students || {}).map(([sid, x]) => ({ sid, ...x, s: doc?.sum?.[sid] })).filter(x => canSee(x.sid));
+  if (!doc) {
+    $("#pf").innerHTML = `<h1>ข้อมูลนักศึกษา</h1><div class="notice warn">ยังไม่มีข้อมูลผลการเรียนของ${esc(semShort(roster.sem))} — ${isAdm() ? `ไปที่เมนู <a href="#/import">ภาคเรียน / นำเข้า ITW51</a> แล้วนำเข้าภาคเรียนนี้อีกครั้ง ระบบจะดึงผลการเรียน กพช. และคุณธรรมมาให้` : "ผู้ดูแลระบบต้องนำเข้าข้อมูล ITW51 ภาคเรียนนี้อีกครั้ง"}</div>`;
+    return;
+  }
+  if (!all.length) { $("#pf").innerHTML = `<h1>ข้อมูลนักศึกษา</h1><div class="notice">${!me?.groups?.length && !seesAll() ? "บัญชีของคุณยังไม่ได้กำหนดกลุ่มที่ดูแล กรุณาติดต่อผู้ดูแลระบบ" : "ไม่มีนักศึกษาในภาคเรียนนี้"}</div>`; return; }
+  const groupsHere = [...new Set(all.map(x => x.g))].sort();
+  const ginfo = roster.groups || {};
+  const F = { g: SS.get("pf:g") || "", q: "", st: "" };
+  $("#pf").innerHTML = `<h1>ข้อมูลนักศึกษา</h1>
+    <p class="muted">${esc(semLabel(roster.sem))} · ข้อมูลจาก ITW51 (นำเข้าเมื่อ ${doc.at ? new Date(doc.at).toLocaleDateString("th-TH", { dateStyle: "medium" }) : "-"}) · ${seesAll() ? "เห็นทุกกลุ่ม" : "เฉพาะกลุ่มที่คุณดูแล"} · คลิกชื่อเพื่อดูผลการเรียนทุกภาคเรียน</p>
+    <div class="row" style="margin-bottom:12px">
+      <select id="pg" style="max-width:340px">${groupsHere.length > 1 ? `<option value="">ทุกกลุ่ม (${all.length} คน)</option>` : ""}${groupsHere.map(g => `<option value="${esc(g)}" ${F.g === g ? "selected" : ""}>กลุ่ม ${esc(g)}${ginfo[g]?.name ? " · " + esc(ginfo[g].name) : ""} (${all.filter(x => x.g === g).length} คน)</option>`).join("")}</select>
+      <select id="pst" style="max-width:240px"><option value="">ทุกสถานะ</option><option value="ok">ครบเกณฑ์จบ</option><option value="no">ยังไม่ครบเกณฑ์</option></select>
+      <input type="text" id="pq" placeholder="ค้นหารหัสหรือชื่อ" style="max-width:240px"></div>
+    <div id="pl"></div>`;
+  const draw = () => {
+    const rows = all.filter(x => (!F.g || x.g === F.g) && (!F.q || (x.sid + x.n).toLowerCase().includes(F.q)) && (!F.st || (F.st === "ok" ? x.s?.ok : !x.s?.ok)))
+      .sort((a, b) => a.g.localeCompare(b.g) || a.sid.localeCompare(b.sid));
+    const nOk = rows.filter(x => x.s?.ok).length;
+    $("#pl").innerHTML = `<div class="stat-row" style="margin-bottom:12px">
+        <div class="stat"><div class="v">${rows.length.toLocaleString()}</div><div class="l">นักศึกษา</div></div>
+        <div class="stat"><div class="v">${nOk.toLocaleString()}</div><div class="l">ครบเกณฑ์จบ</div></div>
+        <div class="stat"><div class="v">${(rows.length - nOk).toLocaleString()}</div><div class="l">ยังไม่ครบเกณฑ์</div></div></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ-สกุล</th><th>กลุ่ม</th><th>ระดับ</th>
+        <th class="n">บังคับ (นก.)</th><th class="n">เลือก (นก.)</th><th class="n">เกรดเฉลี่ย</th><th class="n">กพช. (ชม.)</th><th>คุณธรรม</th><th>คุณสมบัติการจบ</th></tr></thead><tbody>
+      ${rows.map(x => { const s = x.s;
+        return `<tr class="click" data-sid="${esc(x.sid)}"><td>${esc(x.sid)}</td><td>${esc(x.n)}</td><td>${esc(x.g)}</td><td>${esc(LEVELS[x.l] || "")}</td>
+          <td class="n">${s ? fmtNum(s.cr) : "—"}</td><td class="n">${s ? fmtNum(s.el) : "—"}</td><td class="n"><b>${s?.gpa != null ? s.gpa.toFixed(2) : "—"}</b></td>
+          <td class="n">${s ? fmtNum(s.kph) : "—"}</td><td>${s?.vir != null ? esc(VIRTUE[s.vir] || s.vir) : "—"}</td>
+          <td>${!s ? `<span class="chip">ไม่มีข้อมูล</span>` : s.ok ? `<span class="chip ok">✓ ครบเกณฑ์</span>` : `<span class="chip warn">ขาด ${s.miss} ข้อ</span>`}</td></tr>`; }).join("")}
+      </tbody></table></div><p class="small muted" style="margin-top:6px">นก. = หน่วยกิตที่ผ่านแล้ว · คลิกแถวเพื่อดูรายละเอียด</p>`;
+    $$("#pl tr.click").forEach(tr => tr.onclick = () => { location.hash = "#/profiles/" + encodeURIComponent(tr.dataset.sid); });
+  };
+  $("#pg").onchange = e => { F.g = e.target.value; SS.set("pf:g", F.g); draw(); };
+  $("#pst").onchange = e => { F.st = e.target.value; draw(); };
+  $("#pq").oninput = e => { F.q = e.target.value.trim().toLowerCase(); draw(); };
+  if (F.g && !groupsHere.includes(F.g)) F.g = "";
+  draw();
+}
+
+async function profileDetail(sid) {
+  const box = $("#pf");
+  const st = roster.students?.[sid];
+  if (!st || !canSee(sid)) { box.innerHTML = `<div class="notice bad">ไม่พบนักศึกษา หรือไม่ได้อยู่ในกลุ่มที่คุณดูแล</div>`; return; }
+  const [p, subjDoc, results] = await Promise.all([store.get("profiles/" + sid).catch(() => null), store.get("admin/subjects-" + st.l).catch(() => null),
+    store.list("results", [["sid", "==", sid]]).catch(() => [])]);
+  const back = `<a class="btn" href="#/profiles">← รายชื่อนักศึกษา</a>`;
+  if (!p) { box.innerHTML = `${back}<div class="notice warn" style="margin-top:12px">ยังไม่มีผลการเรียนของนักศึกษาคนนี้ (ให้ผู้ดูแลนำเข้า ITW51 ภาคเรียนนี้อีกครั้ง)</div>`; return; }
+  const subs = subjDoc?.subs || {}, t = transcript(p, subs, subjDoc?.rule);
+  const gi = roster.groups?.[st.g];
+  const pct = (h, n) => Math.max(0, Math.min(100, n ? h / n * 100 : 0));
+  const onl = {}; for (const r of results) onl[r.courseId] = r;
+  box.innerHTML = `${back}
+    <div class="row between" style="margin:14px 0 4px;align-items:flex-end"><div>
+      <div class="muted small">${esc(sid)} · กลุ่ม ${esc(st.g)}${gi?.name ? " " + esc(gi.name) : ""} · ${esc(LEVELS[st.l] || "")}</div>
+      <h1 style="margin:0">${esc(st.n)}</h1></div>
+      <span class="chip ${t.ok ? "ok" : "warn"}" style="font-size:.95rem;padding:6px 14px">${t.ok ? "✓ ครบคุณสมบัติการจบ" : `ยังไม่ครบคุณสมบัติ (ขาด ${t.miss} ข้อ)`}</span></div>
+    <div class="stat-row" style="margin:12px 0">
+      <div class="stat"><div class="v">${t.gpa != null ? t.gpa.toFixed(2) : "—"}</div><div class="l">เกรดเฉลี่ยสะสม</div></div>
+      <div class="stat"><div class="v">${fmtNum(t.core + t.elec)}</div><div class="l">หน่วยกิตที่ผ่าน (จาก ${fmtNum(t.rule.req + t.rule.elec)})</div></div>
+      <div class="stat"><div class="v">${fmtNum(t.kph)}</div><div class="l">ชั่วโมง กพช. (จาก ${t.rule.act})</div></div>
+      <div class="stat"><div class="v" style="font-size:1.4rem">${t.vir != null ? esc(VIRTUE[t.vir] || t.vir) : "—"}</div><div class="l">คุณธรรม (ล่าสุด)</div></div></div>
+    <div class="card" style="margin-bottom:14px"><h2>คุณสมบัติการจบ</h2>
+      <div class="grad-list">${t.checks.map(c => `<div class="grad-row ${c.ok ? "ok" : "no"}">
+        <span class="gi">${c.ok ? "✓" : "✕"}</span><span class="gl">${esc(c.label)}</span>
+        <span class="gv">${c.text ? `${esc(c.text)} <span class="muted small">(เกณฑ์ ${esc(c.needText)})</span>` : `<b>${fmtNum(c.have)}</b> / ${fmtNum(c.need)} ${c.unit}${!c.ok ? ` <span class="muted small">· ขาด ${fmtNum(c.need - c.have)}</span>` : ""}`}</span>
+        ${c.text ? "" : `<span class="gbar"><i style="width:${pct(c.have, c.need)}%"></i></span>`}</div>`).join("")}</div>
+      ${t.pendCr ? `<p class="small muted" style="margin:10px 0 0">กำลังเรียน (ยังไม่มีผล) ${fmtNum(t.pendCr)} หน่วยกิต</p>` : ""}
+      <p class="small muted" style="margin:8px 0 0">เกณฑ์จากไฟล์ RULE ของ ITW51 · การสอบ N-NET และเงื่อนไขอื่นตรวจสอบใน ITW51</p></div>
+    <div class="card" style="margin-bottom:14px"><h2>ผลการเรียนรายภาคเรียน</h2>
+      ${t.sems.map(s => { const rs = t.rows.filter(r => r.s === s), g = semGpa(t.rows, subs, s);
+        return `<details class="sem-block" ${s === t.sems[0] ? "open" : ""}><summary><b>${esc(semShort(s))}</b> <span class="muted small">${rs.length} วิชา · ${fmtNum(rs.reduce((a, r) => a + subjectOf(subs, r.c).credit, 0))} หน่วยกิต${g != null ? ` · เกรดเฉลี่ย ${g.toFixed(2)}` : ""}</span></summary>
+          <div class="tbl-wrap" style="max-height:none"><table class="tbl"><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>ประเภท</th><th class="n">หน่วยกิต</th><th class="n">คะแนนรวม</th><th class="n">เกรด</th><th class="n">ออนไลน์ (กลางภาค)</th></tr></thead><tbody>
+          ${rs.map(r => { const sb = subjectOf(subs, r.c), o = onl[courseId(s, r.c)], k = r.info.kind;
+            return `<tr><td>${esc(r.c)}</td><td>${esc(sb.name)}</td><td><span class="type-tag ${sb.type}">${TYPE_LABEL[sb.type] || ""}</span></td><td class="n">${fmtNum(sb.credit)}</td>
+              <td class="n">${r.t ?? "—"}</td><td class="n"><span class="grade g-${k}">${esc(r.info.label)}</span></td>
+              <td class="n small">${o?.score ? fmtNum(o.score.total) : o?.quizAt ? "ส่งแล้ว" : "—"}</td></tr>`; }).join("")}
+          </tbody></table></div></details>`; }).join("") || `<p class="muted">ไม่มีผลการเรียน</p>`}</div>
+    <div class="grid2" style="align-items:start">
+      <div class="card"><h2>กิจกรรมพัฒนาคุณภาพชีวิต (กพช.)</h2>
+        ${t.acts.length ? `<div class="tbl-wrap" style="max-height:360px"><table class="tbl"><thead><tr><th>ภาคเรียน</th><th>กิจกรรม</th><th class="n">ชั่วโมง</th></tr></thead><tbody>
+          ${t.acts.map(a => `<tr><td>${esc(semShort(a.s))}</td><td style="white-space:normal">${esc(a.name)}</td><td class="n">${fmtNum(a.h)}</td></tr>`).join("")}
+          <tr><td colspan="2"><b>รวม</b></td><td class="n"><b>${fmtNum(t.kph)}</b></td></tr></tbody></table></div>` : `<p class="muted">ยังไม่มีชั่วโมง กพช.</p>`}</div>
+      <div class="card"><h2>ผลการประเมินคุณธรรม</h2>
+        ${t.virs.length ? `<div class="tbl-wrap" style="max-height:360px"><table class="tbl"><thead><tr><th>ภาคเรียน</th><th>ผลการประเมิน</th></tr></thead><tbody>
+          ${t.virs.slice().reverse().map(v => `<tr><td>${esc(semShort(v.s))}</td><td>${esc(VIRTUE[v.l] || v.l)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">ยังไม่มีผลประเมิน</p>`}</div></div>`;
+}
+
 // =================================================================== TEACHERS (ผู้ดูแลเท่านั้น)
 async function pageTeachers() {
   app.innerHTML = shell("teachers", `<div class="row between"><h1>ครูผู้สอน</h1><div class="row"><button class="btn" id="impT">นำเข้าจากไฟล์ Excel</button><button class="btn primary" id="addT">+ เพิ่มครู</button></div></div>
@@ -1394,14 +1492,17 @@ async function collectFolder(files) {
     if (name === "GRADE.DBF") (lv[parent] ||= {}).grade = f;
     if (name === "SUBJECT.DBF") (lv[parent] ||= {}).subject = f;
     if (name === "RULE.DBF") rules[parent] = f;
+    if (name === "ACTIVITY.DBF") (lv[parent] ||= {}).activity = f;
+    if (name === "VIRTUE.DBF") (lv[parent] ||= {}).virtue = f;
   }
   return { lv, group, rules };
 }
 
 async function pageImport() {
   app.innerHTML = shell("import", `<h1>ภาคเรียน / นำเข้าข้อมูล ITW51</h1>
-    <p class="muted">ระบบจะอ่านไฟล์ STUDENT.DBF, GRADE.DBF, SUBJECT.DBF ในเบราว์เซอร์ แล้วสร้างบัญชีเข้าเรียนเฉพาะนักศึกษาที่ลงทะเบียนในภาคเรียนที่เลือก
-    (เก็บเฉพาะรหัส ชื่อ กลุ่ม และรายวิชา — เลขบัตรประชาชนจะไม่ถูกส่งขึ้นระบบ ใช้สร้างรหัสลับแบบเข้ารหัสทางเดียวเท่านั้น)</p>
+    <p class="muted">ระบบจะอ่านไฟล์ STUDENT, GRADE, SUBJECT, ACTIVITY, VIRTUE, RULE (.DBF) ในเบราว์เซอร์ แล้วสร้างบัญชีเข้าเรียนเฉพาะนักศึกษาที่ลงทะเบียนในภาคเรียนที่เลือก
+    (เก็บเฉพาะรหัส ชื่อ กลุ่ม รายวิชา ผลการเรียน ชั่วโมง กพช. และผลคุณธรรม — อ่านได้เฉพาะครูและผู้ดูแล ·
+    เลขบัตรประชาชน ที่อยู่ ข้อมูลครอบครัว จะไม่ถูกส่งขึ้นระบบ · เลขบัตรใช้สร้างรหัสลับแบบเข้ารหัสทางเดียวเท่านั้น)</p>
     <div id="semMgr"></div>
     <div class="card stack" style="margin-top:16px">
       <h2>เพิ่ม / ปรับปรุงภาคเรียน จากข้อมูล ITW51</h2>
@@ -1412,13 +1513,15 @@ async function pageImport() {
     <div id="step2"></div>`); bindShell();
   drawSemMgr();
   $("#dir").onchange = async e => {
-    const { lv, group } = await collectFolder([...e.target.files]);
+    const { lv, group, rules } = await collectFolder([...e.target.files]);
     const levels = Object.keys(lv).filter(k => lv[k].student && lv[k].grade).sort();
     if (!levels.length) { $("#found").innerHTML = `<div class="notice bad">ไม่พบไฟล์ STUDENT.DBF และ GRADE.DBF ในโฟลเดอร์ย่อย 1/2/3 — ตรวจว่าเลือกโฟลเดอร์รหัสสถานศึกษาถูกต้อง</div>`; return; }
     $("#found").innerHTML = `<div class="notice">พบข้อมูล: ${levels.map(l => LEVELS[l]).join(" · ")} <span class="spin"></span> กำลังอ่านไฟล์…</div>`;
     const data = {};
     for (const l of levels) {
-      data[l] = { student: new DBF(await lv[l].student.arrayBuffer()), grade: new DBF(await lv[l].grade.arrayBuffer()), subject: lv[l].subject ? new DBF(await lv[l].subject.arrayBuffer()) : null };
+      const opt = async f => f ? new DBF(await f.arrayBuffer()) : null;
+      data[l] = { student: new DBF(await lv[l].student.arrayBuffer()), grade: new DBF(await lv[l].grade.arrayBuffer()), subject: await opt(lv[l].subject),
+        activity: await opt(lv[l].activity), virtue: await opt(lv[l].virtue), rule: await opt(rules[l]) };
     }
     const groups = {};
     const groupInfo = {};
@@ -1533,6 +1636,30 @@ async function prepareImport(sem, levels, data, groups) {
       const merged = {};
       for (const [id, c] of Object.entries(prev?.courses || {})) merged[id] = { ...c, sids: [] };
       for (const [id, c] of Object.entries(courses)) merged[id] = { ...(merged[id] || {}), ...c, manual: !!merged[id]?.manual };
+      // ข้อมูลนักศึกษา (ผลการเรียนทุกภาค · กพช. · คุณธรรม) สำหรับเมนู "ข้อมูลนักศึกษา" — ครู/ผู้ดูแลเท่านั้น
+      $("#pgt").textContent = "กำลังรวบรวมผลการเรียน กพช. และคุณธรรม…";
+      const sumOut = {};
+      for (const l of levels) {
+        const d = data[l], want = {};
+        for (const r of d.student.rows(["ID", "STD_CODE"])) { const sid = r.ID || r.STD_CODE.slice(-10); if (students[sid]?.l === l) want[r.STD_CODE] = sid; }
+        const subs = {};
+        if (d.subject) for (const r of d.subject.rows(["SUB_CODE", "SUB_NAME", "SUB_CREDIT", "SUB_TYPE"]))
+          if (r.SUB_CODE) subs[r.SUB_CODE] = `${(r.SUB_NAME || "").replace(/\|/g, " ")}|${r.SUB_CREDIT ?? ""}|${r.SUB_TYPE === 2 ? "elective" : r.SUB_TYPE === 1 ? "core" : courseType(r.SUB_CODE)}`;
+        let rule = null;
+        if (d.rule) { const r = [...d.rule.rows(["FIN_REQ", "FIN_ELEC", "FIN_ACT", "FIN_TIM"])][0]; if (r) rule = { req: r.FIN_REQ, elec: r.FIN_ELEC, act: r.FIN_ACT, tim: r.FIN_TIM }; }
+        const prof = {};
+        const P = sid => (prof[sid] ||= { gr: [], act: [], vir: [] });
+        for (const r of d.grade.rows(["STD_CODE", "SEMESTRY", "SUB_CODE", "GRADE", "TOTAL"])) { const sid = want[r.STD_CODE]; if (sid && r.SUB_CODE) P(sid).gr.push(`${r.SEMESTRY}|${r.SUB_CODE}|${r.GRADE || ""}|${r.TOTAL ?? ""}`); }
+        if (d.activity) for (const r of d.activity.rows(["STD_CODE", "SEMESTRY", "HOUR", "ACTIVITY"])) { const sid = want[r.STD_CODE]; if (sid) P(sid).act.push(`${r.SEMESTRY}|${r.HOUR ?? 0}|${(r.ACTIVITY || "").replace(/\|/g, " ")}`); }
+        if (d.virtue) for (const r of d.virtue.rows(["STD_CODE", "SEMESTER", "SUMLEVEL"])) { const sid = want[r.STD_CODE]; if (sid && r.SUMLEVEL !== null) P(sid).vir.push(`${r.SEMESTER}|${r.SUMLEVEL}`); }
+        ops.push({ type: "set", path: "admin/subjects-" + l, data: { subs, rule, updatedAt: store.serverTime() } });
+        for (const [sid, p] of Object.entries(prof)) {
+          const s = students[sid];
+          ops.push({ type: "set", path: "profiles/" + sid, data: { sid, n: s.n, g: s.g, l, ...p, updatedAt: store.serverTime() } });
+          sumOut[sid] = summaryOf(transcript(p, subs, rule));
+        }
+      }
+      ops.push({ type: "set", path: "admin/profiles-" + sid_, data: { sem, sum: sumOut, at: store.serverTime() } });
       const usedGroups = new Set(Object.values(students).map(x => x.g));
       const groupsOut = Object.fromEntries(Object.entries(groups.__info || {}).filter(([k]) => usedGroups.has(k)));
       ops.push({ type: "set", path: "admin/roster-" + sid_, data: { sem, students, courses: merged, groups: groupsOut, importedAt: store.serverTime(), importedBy: user.email } });
@@ -1719,6 +1846,7 @@ async function route() {
     if (p === "courses") return await pageCourses();
     if (p === "course") return await pageCourseEdit(arg);
     if (p === "results") return await pageResults(arg || null);
+    if (p === "profiles") return await pageProfiles(arg || null);
     if (ADMIN_PAGES.has(p) && !isAdm()) { location.hash = "#/dash"; return; }
     if (p === "students") return await pageStudents();
     if (p === "schedule") return await pageSchedule();

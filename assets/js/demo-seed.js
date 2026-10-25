@@ -1,8 +1,9 @@
 // ข้อมูลตัวอย่างสำหรับโหมดทดลอง — นักศึกษาทั้งหมดเป็นบุคคลสมมติ
 import { loginKey, courseId, resultId, computeScore, semId, teacherKey, teacherFirstKey, TEACHER_DOMAIN } from "./common.js";
+import { transcript, summaryOf } from "./transcript.js";
 
 const SEM0 = "68/2", SEM = "69/1", SEM2 = "69/2"; // 68/2 จบแล้ว · 69/1 ปัจจุบัน · 69/2 เตรียมล่วงหน้า
-const SEED_VERSION = 9;
+const SEED_VERSION = 10;
 // กลุ่มสมมติ 2 กลุ่ม: 99/3 (ครูสมศรี) และ 98/3 (ครูประภา — ยังไม่มีบัญชี ใช้ทดลองสร้างจากรายชื่อที่ปรึกษา)
 const GROUPS = { "99/3": { name: "กลุ่มทดลอง ก (ข้อมูลสมมติ)", advisor: "ครูสมศรี มีสุข" }, "98/3": { name: "กลุ่มทดลอง ข (ข้อมูลสมมติ)", advisor: "นางประภา ดีงาม" } };
 const GROUP_OF = sid => (Number(sid.slice(-1)) <= 4 ? "99/3" : "98/3");
@@ -180,5 +181,30 @@ export async function seedDemo(store) {
     if (pub) { const s = computeScore(job, jobKey, data); data.score = { video: s.video, quiz: s.quiz, total: s.total, itw: s.itw, quizCorrect: s.quizCorrect, quizCount: s.quizCount, at: now }; }
     ops.push({ type: "set", path: "results/" + resultId(keys[sid], cJob), data });
   }
+  // ข้อมูลนักศึกษา (ผลการเรียนย้อนหลัง · กพช. · คุณธรรม) — สมมติ
+  const SUBS = {
+    "พท31001": "ภาษาไทย|5|core", "พค31001": "คณิตศาสตร์|5|core", "พว31001": "วิทยาศาสตร์|5|core", "พต31001": "ภาษาอังกฤษ|5|core",
+    "สค31001": "สังคมศึกษา|3|core", "สค31002": "ศาสนาและหน้าที่พลเมือง|2|core", "ทช31001": "เศรษฐกิจพอเพียง|1|core", "ทช31002": "ประวัติศาสตร์|2|core",
+    "ทร31001": "ทักษะการเรียนรู้|5|core", "อช31002": "ทักษะการขยายอาชีพ|4|core", "พว32023": "การใช้พลังงานไฟฟ้าในชีวิตประจำวัน|3|elective",
+    "อช02015": "การเกษตรผสมผสาน|3|elective", "อช02018": "การขายและการตลาด|2|elective", "พว02020": "การใช้คอมพิวเตอร์เบื้องต้น|3|elective",
+  };
+  const RULE = { req: 44, elec: 32, act: 200, tim: 4 };
+  await store.batch(ops); ops.length = 0;
+  ops.push({ type: "set", path: "admin/subjects-3", data: { subs: SUBS, rule: RULE } });
+  const hist = { "67/1": ["พท31001", "พค31001", "สค31001", "อช02015"], "67/2": ["พว31001", "พต31001", "สค31002", "อช02018"], "68/1": ["ทร31001", "ทช31002", "พว02020"], "68/2": ["ทช31002", "สค31002"] };
+  const gradeSet = ["4", "3.5", "3", "2.5", "2", "1.5", "1", "0", "ข"];
+  const sum = {};
+  DEMO_ACCOUNTS.forEach(([sid, , name], i) => {
+    const gr = [];
+    Object.entries(hist).forEach(([s, codes], k) => codes.forEach((c, j) => gr.push(`${s}|${c}|${gradeSet[(i * 3 + j + k) % (i === 0 ? 3 : gradeSet.length)]}|${60 + ((i + j * 7 + k * 3) % 35)}`)));
+    SUBJECTS.forEach(([c]) => gr.push(`69/1|${c}||`)); // ภาคปัจจุบัน ยังไม่มีผล
+    const act = [`67/2|${40 + i * 10}|โครงการปลูกป่าชุมชน (สมมติ)`, `68/1|${30 + i * 15}|เผยแพร่ความรู้การทำปุ๋ยหมัก (สมมติ)`, ...(i === 0 ? ["68/2|140|ค่ายพัฒนาโรงเรียน (สมมติ)"] : [])];
+    const vir = [`67/2|2`, `68/1|${i === 3 ? 0 : 2}`, `68/2|${i % 2 ? 3 : 2}`];
+    const p = { gr, act, vir };
+    const g = GROUP_OF(sid);
+    ops.push({ type: "set", path: "profiles/" + sid, data: { sid, n: name, g, l: "3", ...p } });
+    sum[sid] = summaryOf(transcript(p, SUBS, RULE));
+  });
+  ops.push({ type: "set", path: "admin/profiles-" + semId(SEM), data: { sem: SEM, sum, at: new Date().toISOString() } });
   await store.batch(ops);
 }

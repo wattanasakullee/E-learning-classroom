@@ -43,7 +43,7 @@ function renderLogin(msg = "") {
     <form class="card stack" id="loginForm" autocomplete="on">
       <div>
         <label class="f" for="sid">ชื่อผู้ใช้ (รหัสนักศึกษา)</label>
-        <input type="text" id="sid" inputmode="numeric" autocomplete="username" placeholder="เช่น 6813000186" required>
+        <input type="text" id="sid" inputmode="numeric" autocomplete="username" placeholder="รหัสนักศึกษา 10 หลัก" required>
       </div>
       <div>
         <label class="f" for="pw">รหัสผ่าน (เลขบัตรประชาชน / เลข G)</label>
