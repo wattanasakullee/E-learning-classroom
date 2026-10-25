@@ -1137,8 +1137,7 @@ async function profileDetail(sid) {
         <span class="gi">${c.ok ? "✓" : "✕"}</span><span class="gl">${esc(c.label)}</span>
         <span class="gv">${c.text ? `${esc(c.text)} <span class="muted small">(เกณฑ์ ${esc(c.needText)})</span>` : `<b>${fmtNum(c.have)}</b> / ${fmtNum(c.need)} ${c.unit}${!c.ok ? ` <span class="muted small">· ขาด ${fmtNum(c.need - c.have)}</span>` : ""}`}</span>
         ${c.text ? "" : `<span class="gbar"><i style="width:${pct(c.have, c.need)}%"></i></span>`}</div>`).join("")}</div>
-      ${t.pendCr ? `<p class="small muted" style="margin:10px 0 0">กำลังเรียน (ยังไม่มีผล) ${fmtNum(t.pendCr)} หน่วยกิต</p>` : ""}
-      <p class="small muted" style="margin:8px 0 0">เกณฑ์จากไฟล์ RULE ของ ITW51 · การสอบ N-NET และเงื่อนไขอื่นตรวจสอบใน ITW51</p></div>
+      ${t.pendCr ? `<p class="small muted" style="margin:10px 0 0">กำลังเรียน (ยังไม่มีผล) ${fmtNum(t.pendCr)} หน่วยกิต</p>` : ""}</div>
     <div class="card" style="margin-bottom:14px"><h2>ผลการเรียนรายภาคเรียน</h2>
       ${t.sems.map(s => { const rs = t.rows.filter(r => r.s === s), g = semGpa(t.rows, subs, s);
         return `<details class="sem-block" ${s === t.sems[0] ? "open" : ""}><summary><b>${esc(semShort(s))}</b> <span class="muted small">${rs.length} วิชา · ${fmtNum(rs.reduce((a, r) => a + subjectOf(subs, r.c).credit, 0))} หน่วยกิต${g != null ? ` · เกรดเฉลี่ย ${g.toFixed(2)}` : ""}</span></summary>
