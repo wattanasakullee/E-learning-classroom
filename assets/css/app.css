@@ -406,3 +406,20 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .back-btn small { display: block; font-weight: 400; font-size: .8rem; opacity: .85; }
 :root[data-theme="dark"] .back-btn { color: #0e2a20; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .back-btn { color: #0e2a20; } }
+
+/* ---- ข้อมูลนักศึกษา: คุณสมบัติการจบ · ผลการเรียน ---- */
+.grad-list { display: grid; gap: 8px; }
+.grad-row { display: grid; grid-template-columns: 30px minmax(150px, 220px) 1fr; align-items: center; gap: 4px 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+.grad-row .gi { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; background: var(--bad); }
+.grad-row.ok .gi { background: var(--ok); }
+.grad-row .gl { font-weight: 600; }
+.grad-row .gbar { grid-column: 2 / -1; height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.grad-row .gbar i { display: block; height: 100%; background: var(--warn); border-radius: 99px; }
+.grad-row.ok .gbar i { background: var(--ok); }
+@media (max-width: 560px) { .grad-row { grid-template-columns: 30px 1fr; } .grad-row .gv { grid-column: 2; } }
+.sem-block { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
+.sem-block > summary { cursor: pointer; padding: 2px 0; }
+.sem-block[open] > summary { margin-bottom: 10px; }
+.grade { display: inline-block; min-width: 38px; text-align: center; padding: 1px 8px; border-radius: 99px; font-weight: 600; background: var(--surface-2); }
+.grade.g-pass { background: var(--ok-soft); color: var(--ok); }
+.grade.g-fail, .grade.g-absent, .grade.g-noright { background: var(--bad-soft); color: var(--bad); }
