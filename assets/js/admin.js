@@ -101,6 +101,20 @@ async function lookupTeacher(input) {
   return null;
 }
 // สร้างตารางค้นชื่อ (ชื่ออย่างเดียว) ให้ครูทุกคน · ชื่อซ้ำ = ต้องพิมพ์นามสกุล
+// ชื่อครูประจำกลุ่ม (สาธารณะ เฉพาะชื่อ) ให้หน้านักศึกษาแสดง "ครูประจำกลุ่ม ..." · ไม่มีเบอร์/อีเมล
+async function syncAdvisors(staffList) {
+  if (!isAdm()) return;
+  const map = {};
+  for (const t of staffList.filter(t => t.role === "teacher" && t.active !== false).sort((a, b) => a.name.localeCompare(b.name, "th")))
+    for (const g of t.groups || []) (map[g] ||= []).push(t.name);
+  const out = Object.fromEntries(Object.entries(map).map(([g, n]) => [g, n.join(", ")]));
+  const sig = JSON.stringify(Object.entries(out).sort());
+  if (SS.get("itw51:advSig") === sig) return;
+  const cur = await store.get("pub/advisors").catch(() => null);
+  if (JSON.stringify(Object.entries(cur?.map || {}).sort()) !== sig) await store.set("pub/advisors", { map: out, updatedAt: store.serverTime() }, false);
+  SS.set("itw51:advSig", sig);
+}
+
 async function syncFirstNameLogins(staffList) {
   const want = {};
   for (const t of staffList) {
@@ -234,6 +248,7 @@ async function pageDash() {
   }
   const staffList = (await store.list("staff").catch(() => [])).filter(t => t.role === "teacher");
   syncFirstNameLogins(staffList).catch(e => console.error("first-name sync", e));
+  syncAdvisors(staffList).catch(e => console.error("advisor sync", e));
   const staffAll = staffList.filter(t => t.active !== false);
   const assignedG = new Set(staffAll.flatMap(t => t.groups || []));
   const waitG = [...new Set(Object.values(roster.students).map(x => x.g))].filter(g => !assignedG.has(g));
@@ -1183,6 +1198,7 @@ async function pageTeachers() {
     <div id="tl"><div class="loading"><span class="spin"></span></div></div><div id="tsug"></div>`); bindShell();
   const staff = (await store.list("staff")).filter(t => t.role === "teacher").sort((a, b) => a.name.localeCompare(b.name, "th"));
   await syncFirstNameLogins(staff).catch(e => console.error("first-name sync", e));
+  syncAdvisors(staff).catch(e => console.error("advisor sync", e));
   // กลุ่มทั้งหมดที่รู้จัก (จากทุกภาคเรียน)
   const groupMap = {};
   for (const x of semList()) {
@@ -1449,6 +1465,7 @@ async function pageGroups() {
     <div id="gp"><div class="loading"><span class="spin"></span></div></div>`); bindShell();
   if (!needRoster()) return;
   const staff = (await store.list("staff")).filter(t => t.role === "teacher").sort((a, b) => a.name.localeCompare(b.name, "th"));
+  syncAdvisors(staff).catch(e => console.error("advisor sync", e));
   const active = staff.filter(t => t.active !== false);
   const cnt = {}; for (const x of Object.values(roster.students || {})) cnt[x.g] = (cnt[x.g] || 0) + 1;
   const ginfo = roster.groups || {};

@@ -104,13 +104,16 @@ async function renderClassroom(wanted) {
   app.innerHTML = `${topbar(login)}<main class="wrap">
     <div class="term-head"><div>
       <h1>ห้องเรียนของฉัน</h1>
-      ${term ? `<div class="muted small">${esc(LEVELS[term.level] || "")} · กลุ่ม ${esc(term.grp)}${term.grpName ? " " + esc(term.grpName) : ""}</div>` : ""}
+      ${term ? `<div class="muted small">${esc(LEVELS[term.level] || "")} · กลุ่ม ${esc(term.grp)}${term.grpName ? " " + esc(term.grpName) : ""}</div>
+        <div class="small adv-line" id="advLine"></div>` : ""}
     </div></div>
     ${list.length ? `<nav class="term-tabs" aria-label="เลือกภาคเรียน">${list.map(t => `<a href="#/s/${t.id}" class="${t.id === term.id ? "on" : ""}">${esc(semShort(t.sem))}</a>`).join("")}</nav>` : ""}
     <div class="course-grid" id="grid"><div class="loading"><span class="spin"></span></div></div>
   </main>`;
   bindLogout();
   if (!term) { $("#grid").outerHTML = `<div class="notice warn">ยังไม่มีข้อมูลการลงทะเบียนของคุณในระบบ กรุณาติดต่อครู</div>`; return; }
+  // ครูประจำกลุ่ม (ตามที่ผู้ดูแลมอบหมายกลุ่มไว้)
+  store.get("pub/advisors").then(d => { const n = d?.map?.[term.grp], el = $("#advLine"); if (n && el) el.textContent = "ครูประจำกลุ่ม " + n; }).catch(() => {});
   const ids = term.courses || [];
   const [courses, results] = await Promise.all([
     Promise.all(ids.map(id => store.get("courses/" + id).catch(() => null))),

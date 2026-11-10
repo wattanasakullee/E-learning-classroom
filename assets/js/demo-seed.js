@@ -3,7 +3,7 @@ import { loginKey, courseId, resultId, computeScore, semId, teacherKey, teacherF
 import { transcript, summaryOf } from "./transcript.js";
 
 const SEM0 = "68/2", SEM = "69/1", SEM2 = "69/2"; // 68/2 จบแล้ว · 69/1 ปัจจุบัน · 69/2 เตรียมล่วงหน้า
-const SEED_VERSION = 10;
+const SEED_VERSION = 11;
 // กลุ่มสมมติ 2 กลุ่ม: 99/3 (ครูสมศรี) และ 98/3 (ครูประภา — ยังไม่มีบัญชี ใช้ทดลองสร้างจากรายชื่อที่ปรึกษา)
 const GROUPS = { "99/3": { name: "กลุ่มทดลอง ก (ข้อมูลสมมติ)", advisor: "ครูสมศรี มีสุข" }, "98/3": { name: "กลุ่มทดลอง ข (ข้อมูลสมมติ)", advisor: "นางประภา ดีงาม" } };
 const GROUP_OF = sid => (Number(sid.slice(-1)) <= 4 ? "99/3" : "98/3");
@@ -205,6 +205,7 @@ export async function seedDemo(store) {
     ops.push({ type: "set", path: "profiles/" + sid, data: { sid, n: name, g, l: "3", ...p } });
     sum[sid] = summaryOf(transcript(p, SUBS, RULE));
   });
+  ops.push({ type: "set", path: "pub/advisors", data: { map: { "99/3": "ครูสมศรี มีสุข" } } });
   ops.push({ type: "set", path: "admin/profiles-" + semId(SEM), data: { sem: SEM, sum, at: new Date().toISOString() } });
   await store.batch(ops);
 }
