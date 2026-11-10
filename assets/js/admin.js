@@ -447,7 +447,7 @@ async function pageCourseEdit(cid) {
   onLeave(() => { window.removeEventListener("beforeunload", before); player?.destroy(); });
 
   $("#main").innerHTML = `
-    <div class="crumb"><a href="#/courses">← รายวิชาทั้งหมด</a></div>
+    <div class="crumb"><a class="back-pill" href="#/courses">← รายวิชาทั้งหมด</a></div>
     <div class="row between" style="align-items:flex-start">
       <div class="ed-head"><div class="ed-cover"><div id="cvPrev"></div>
         <div class="ed-cover-btns"><button class="btn sm" id="cvUp" title="รูปแนวตั้ง 3:4 เช่น 600×800 · ระบบย่อให้อัตโนมัติ">🖼 เปลี่ยนปก</button>
@@ -1006,7 +1006,7 @@ async function resultsCourse(cid) {
   const vq = course?.video?.questions?.length || 0;
   const fin = hasFinalExam(course), ffull = finalFullOf(course), ty = courseType(meta.code, course?.type), mf = midFulls(course);
   const awayCell = (n, done) => n ? `<span class="chip ${n >= 3 ? "warn" : ""}" title="จำนวนครั้งที่ออกจากหน้าข้อสอบหรือกดแคปหน้าจอ">${n}</span>` : done ? "0" : "";
-  $("#r").innerHTML = `<div class="crumb"><a href="#/results">← ผลคะแนนทุกวิชา</a></div>
+  $("#r").innerHTML = `<div class="crumb"><a class="back-pill" href="#/results">← ผลคะแนนทุกวิชา</a></div>
     <div class="row between"><div><div class="muted small"><span class="type-tag ${ty}">${TYPE_LABEL[ty]}</span>${esc(meta.code)} · ${esc(semLabel(roster.sem))}</div><h1 style="margin:0">${esc(meta.name)}</h1></div>
     ${isAdm() ? `<div class="row"><button class="btn" id="csv">ดาวน์โหลด CSV</button><button class="btn primary" id="pub">คำนวณและประกาศคะแนน</button></div>` : `<span class="chip">${rows.length} คน${seesAll() ? "" : "ในกลุ่มของฉัน"}</span>`}</div>
     ${!course ? `<div class="notice warn" style="margin-top:10px">ยังไม่ได้สร้างบทเรียนวิชานี้</div>` : ""}
