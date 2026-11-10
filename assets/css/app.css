@@ -423,3 +423,77 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .grade { display: inline-block; min-width: 38px; text-align: center; padding: 1px 8px; border-radius: 99px; font-weight: 600; background: var(--surface-2); }
 .grade.g-pass { background: var(--ok-soft); color: var(--ok); }
 .grade.g-fail, .grade.g-absent, .grade.g-noright { background: var(--bad-soft); color: var(--bad); }
+
+/* ---- ปกรายวิชา (แบบปกหนังสือ) · ขนาดการ์ดเท่าเดิม ---- */
+.course-card.has-cover { flex-direction: row; align-items: stretch; gap: 14px; padding: 12px 16px 12px 12px; }
+.course-card.has-cover::before { display: none; }
+.course-card .cc-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; flex: 1; }
+.cc-cover { display: block; position: relative; flex: 0 0 auto; width: 96px; aspect-ratio: 3 / 4; align-self: center; border-radius: 4px 8px 8px 4px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,.18), 4px 6px 12px rgba(0,0,0,.18); transition: transform .2s; }
+.course-card:hover .cc-cover { transform: translateY(-2px) rotate(-1.5deg); }
+.cc-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cc-cover .spine { position: absolute; inset: 0 auto 0 0; width: 9px; z-index: 2;
+  background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,.08) 70%, rgba(255,255,255,.25));
+  -webkit-mask: repeating-linear-gradient(180deg, #000 0 6px, rgba(0,0,0,.65) 6px 8px); mask: repeating-linear-gradient(180deg, #000 0 6px, rgba(0,0,0,.65) 6px 8px); }
+.cc-cover.auto { display: flex; flex-direction: column; padding: 8px 7px 7px 15px; color: #fff;
+  background: radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, var(--c2) 70%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--c1), color-mix(in srgb, var(--c1) 70%, #000)); }
+.cc-cover.auto::after { content: ""; position: absolute; right: -18px; bottom: -18px; width: 70px; height: 70px; border-radius: 50%;
+  border: 10px solid rgba(255,255,255,.12); box-shadow: 0 0 0 10px rgba(255,255,255,.06); }
+.cc-cover .cc-area { font-size: .55rem; font-weight: 600; letter-spacing: .02em; opacity: .85; line-height: 1.2; }
+.cc-cover .cc-title { margin-top: 6px; font-size: .78rem; font-weight: 700; line-height: 1.25; text-shadow: 0 1px 2px rgba(0,0,0,.3);
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.cc-cover .cc-code { margin-top: auto; font-size: .6rem; opacity: .9; position: relative; z-index: 1; }
+.course-card.empty .cc-cover { filter: saturate(.55); opacity: .9; }
+@media (max-width: 480px) { .cc-cover { width: 84px; } .course-card.has-cover { gap: 12px; } }
+/* ปกในหน้าแก้ไขบทเรียน */
+.ed-head { display: flex; gap: 14px; align-items: flex-start; }
+.ed-cover { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ed-cover .cc-cover { width: 84px; }
+.ed-cover-btns { display: flex; flex-direction: column; gap: 4px; }
+.ed-cover-btns .btn { padding: 4px 8px; font-size: .75rem; }
+
+/* ---- ขั้นตอนบทเรียน: พื้นหลังไล่เฉดเขียวพาสเทล ---- */
+.step { --g1: #eefaf2; --g2: #d4f1df; position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--g1) 0%, var(--g2) 100%); border-color: #c6e8d3;
+  box-shadow: 0 2px 8px rgba(23, 98, 74, .08); transition: transform .15s, box-shadow .15s, border-color .15s; }
+.step::after { content: ""; position: absolute; right: -22px; top: -22px; width: 74px; height: 74px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.75), rgba(255,255,255,0) 70%); pointer-events: none; }
+.step[data-tab="video"] { --g1: #f0fbf4; --g2: #cdeedb; }
+.step[data-tab="article"] { --g1: #effaf6; --g2: #c9ece2; }
+.step[data-tab="quiz"] { --g1: #f2fbef; --g2: #d6f0cc; }
+.step[data-tab="final"] { --g1: #eef9f0; --g2: #c4e9cf; }
+.step:hover:not(.locked) { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(23, 98, 74, .15); border-color: #9fd8b6; }
+.step .n { background: rgba(255,255,255,.85); color: var(--brand); font-weight: 700; box-shadow: 0 1px 3px rgba(23, 98, 74, .15); }
+.step .t { color: #134e3a; }
+.step .s { color: #4b7a66; }
+.step.active { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(31, 122, 90, .18), 0 6px 16px rgba(23, 98, 74, .15); }
+.step.active .n { background: var(--brand); color: #fff; }
+.step.done { --g1: #dff5e8; --g2: #b6e6c9; }
+.step.done .n { background: var(--ok); color: #fff; }
+.step.locked { --g1: #f3f5f3; --g2: #e6ebe7; border-color: var(--line); box-shadow: none; opacity: .7; cursor: not-allowed; }
+.step.locked .t, .step.locked .s { color: var(--ink-3); }
+.step.locked .n { color: var(--ink-3); box-shadow: none; }
+:root[data-theme="dark"] .step { --g1: #17352a; --g2: #1f4a39; border-color: #2c5a47; }
+:root[data-theme="dark"] .step .t { color: #d7f3e4; } :root[data-theme="dark"] .step .s { color: #9ccdb5; }
+:root[data-theme="dark"] .step.locked { --g1: #1c211f; --g2: #232a27; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .step { --g1: #17352a; --g2: #1f4a39; border-color: #2c5a47; }
+  :root:not([data-theme="light"]) .step .t { color: #d7f3e4; } :root:not([data-theme="light"]) .step .s { color: #9ccdb5; }
+  :root:not([data-theme="light"]) .step.locked { --g1: #1c211f; --g2: #232a27; }
+}
+
+/* ขั้นตอนบทเรียน: แต่ละกรอบไล่เฉดเขียวพาสเทลของตัวเอง (เห็นการไล่สีชัด) — คงสีเดิมแม้ทำเสร็จแล้ว */
+.step { background: linear-gradient(120deg, var(--g1) 0%, var(--g2) 55%, var(--g3, var(--g2)) 100%); }
+.step[data-tab="video"]   { --g1: #f1fff6; --g2: #c8f2d8; --g3: #9fe2bd; }   /* เขียวมินต์ */
+.step[data-tab="article"] { --g1: #effff9; --g2: #bfeee0; --g3: #8fdcc6; }   /* เขียวอมฟ้า */
+.step[data-tab="quiz"]    { --g1: #f6ffec; --g2: #d6f3bf; --g3: #b0e294; }   /* เขียวอ่อนอมเหลือง */
+.step[data-tab="final"]   { --g1: #f0fdf2; --g2: #c2ecc9; --g3: #92d8a3; }   /* เขียวใบไม้ */
+.step.done { --g1: initial; }
+.step.done[data-tab="video"]   { --g1: #e3fbec; --g2: #b2ebc8; --g3: #84d6a8; }
+.step.done[data-tab="article"] { --g1: #e0fbf2; --g2: #a9e6d2; --g3: #74cfb3; }
+.step.done[data-tab="quiz"]    { --g1: #edfbdd; --g2: #c4ea9f; --g3: #98d474; }
+.step.done[data-tab="final"]   { --g1: #e2f8e6; --g2: #a9e2b4; --g3: #76c98b; }
+.step.locked[data-tab] { --g1: #f6f7f6; --g2: #eceeec; --g3: #e2e5e2; }
+:root[data-theme="dark"] .step[data-tab] { --g1: #14322a; --g2: #1d4a3a; --g3: #286049; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .step[data-tab] { --g1: #14322a; --g2: #1d4a3a; --g3: #286049; } }
