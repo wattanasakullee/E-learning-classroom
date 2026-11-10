@@ -497,3 +497,6 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .step.locked[data-tab] { --g1: #f6f7f6; --g2: #eceeec; --g3: #e2e5e2; }
 :root[data-theme="dark"] .step[data-tab] { --g1: #14322a; --g2: #1d4a3a; --g3: #286049; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .step[data-tab] { --g1: #14322a; --g2: #1d4a3a; --g3: #286049; } }
+/* ครูประจำกลุ่ม (หน้าห้องเรียนของฉัน) — ขนาดเท่าบรรทัดระดับชั้น สีเข้ม */
+.adv-line { color: var(--ink); font-weight: 600; margin-top: 2px; }
+.adv-line:empty { display: none; }
