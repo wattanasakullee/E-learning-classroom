@@ -1,6 +1,7 @@
 import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
 import { DBF } from "./dbf.js";
+import { coverHTML, makeCover } from "./common.js";
 import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, DEFAULT_FINAL_FULL, midFulls, finalWindow, finalStatus, fmtThaiDT, TH_MONTHS, examWindow, examStatus } from "./common.js";
 import { transcript, summaryOf, subjectOf, semGpa, gradeInfo, VIRTUE, semKey } from "./transcript.js";
 import { createPlayer } from "./player.js";
@@ -420,6 +421,7 @@ async function pageCourseEdit(cid) {
     quiz: { title: doc?.quiz?.title || "", timeLimit: Number(doc?.quiz?.timeLimit) || 0, full: fullOr(doc?.quiz?.full, CONFIG.quizFull), questions: withKey(doc?.quiz?.questions, key?.quiz),
       openAt: doc?.quiz?.openAt ? new Date(doc.quiz.openAt) : null, closeAt: doc?.quiz?.closeAt ? new Date(doc.quiz.closeAt) : null },
     type: doc?.type === "core" || doc?.type === "elective" ? doc.type : "",
+    cover: doc?.cover || "",
     final: finalState(doc, key),
   };
   const effType = () => courseType(meta.code, st.type);
@@ -432,8 +434,12 @@ async function pageCourseEdit(cid) {
   $("#main").innerHTML = `
     <div class="crumb"><a href="#/courses">← รายวิชาทั้งหมด</a></div>
     <div class="row between" style="align-items:flex-start">
+      <div class="ed-head"><div class="ed-cover"><div id="cvPrev"></div>
+        <div class="ed-cover-btns"><button class="btn sm" id="cvUp" title="รูปแนวตั้ง 3:4 เช่น 600×800 · ระบบย่อให้อัตโนมัติ">🖼 เปลี่ยนปก</button>
+        <button class="btn sm ghost" id="cvAuto" ${st.cover ? "" : "hidden"}>ใช้ปกอัตโนมัติ</button>
+        <input type="file" id="cvFile" accept="image/*" hidden></div></div>
       <div><div class="muted small"><span class="type-tag ${effType()}" id="ttag">${TYPE_LABEL[effType()]}</span>${esc(meta.code)} · ${esc(LEVELS[meta.level] || "")} · ${meta.sids?.length ? meta.sids.length + " คน" : "รอลงทะเบียน"} · ${esc(semLabel(roster.sem))}</div>
-      <h1 style="margin:0">${esc(meta.name)}</h1></div>
+      <h1 style="margin:0">${esc(meta.name)}</h1></div></div>
       <div class="row">
         <select id="ctype" title="ประเภทวิชา" style="width:auto">
           <option value="" ${st.type ? "" : "selected"}>ประเภท: ตามรหัสวิชา (${TYPE_LABEL[courseType(meta.code)]})</option>
@@ -449,6 +455,16 @@ async function pageCourseEdit(cid) {
     <div class="tabs" id="etabs"></div>
     <div id="pane"></div>`;
   $("#pub").onchange = e => { st.published = e.target.checked; mark(); };
+  // ปกรายวิชา: อัปโหลดรูป (ย่อเป็น 240×320) หรือใช้ปกอัตโนมัติตามกลุ่มสาระ
+  const drawCover = () => { $("#cvPrev").innerHTML = coverHTML({ cover: st.cover }, meta.code, meta.name); $("#cvAuto").hidden = !st.cover; };
+  drawCover();
+  $("#cvUp").onclick = () => $("#cvFile").click();
+  $("#cvFile").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try { st.cover = await makeCover(f); drawCover(); mark(); toast("ใส่ปกแล้ว กด บันทึก เพื่อใช้งาน", "ok"); }
+    catch (err) { toast("ใช้รูปนี้ไม่ได้: " + err.message, "bad"); }
+  };
+  $("#cvAuto").onclick = () => { st.cover = ""; drawCover(); mark(); };
   // สรุปคะแนนกลางภาคของวิชานี้ (ส่วนที่ไม่มีคำถามไม่นับ)
   const drawSum = () => {
     const f = midFulls({ video: st.video, quiz: st.quiz });
@@ -705,6 +721,7 @@ async function pageCourseEdit(cid) {
       quiz: { title: st.quiz.title, timeLimit: st.quiz.timeLimit || 0, full: st.quiz.full, questions: zs.map(x => x.q),
         ...(st.quiz.openAt && st.quiz.closeAt ? { openAt: new Date(st.quiz.openAt), closeAt: new Date(st.quiz.closeAt) } : {}) },
       type: st.type || null,
+      cover: st.cover || null,
       // ข้อสอบปลายภาค (เก็บไว้แม้เปลี่ยนเป็นวิชาบังคับ แต่นักศึกษาจะไม่เห็น)
       final: { title: st.final.title, timeLimit: st.final.timeLimit || 0, full: st.final.full, questions: fs.map(x => x.q),
         ...(st.final.openAt && st.final.closeAt ? { openAt: new Date(st.final.openAt), closeAt: new Date(st.final.closeAt) } : {}) },

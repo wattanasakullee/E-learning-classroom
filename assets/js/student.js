@@ -1,6 +1,6 @@
 import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
-import { $, $$, esc, loginKey, semLabel, semShort, semId, semCompare, loginTerms, resultId, fmtTime, fmtNum, toast, confirmBox, LEVELS, demoBanner, safeStorage, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, midFulls, finalWindow, finalStatus, fmtThaiDT, examWindow, examStatus } from "./common.js";
+import { $, $$, esc, loginKey, semLabel, semShort, semId, semCompare, loginTerms, resultId, fmtTime, fmtNum, toast, confirmBox, LEVELS, demoBanner, safeStorage, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, midFulls, finalWindow, finalStatus, fmtThaiDT, examWindow, examStatus, coverHTML } from "./common.js";
 import { createPlayer, runInteractive } from "./player.js";
 
 const ICON_CAP = `<img src="assets/img/logo.png" alt="ตราสัญลักษณ์ ${esc(CONFIG.schoolName)}">`;
@@ -138,11 +138,13 @@ async function renderClassroom(wanted) {
       if (c.quiz?.questions?.length) chips += `<span class="chip ${r.quizAt ? "ok" : ""}">${ty === "elective" ? "กลางภาค" : "แบบทดสอบ"}${r.quizAt ? " ✓" : ""}</span>`;
       if (hasFinalExam(c) && (r.finAt || finalStatus(c, settings) === "open")) chips += `<span class="chip ${r.finAt ? "ok" : "brand"}">${r.finAt ? "ปลายภาค ✓" : "เปิดสอบปลายภาค"}</span>`;
     }
-    return `${sec}<a class="course-card ${ready ? "" : "empty"}" href="#/c/${encodeURIComponent(id)}">
+    return `${sec}<a class="course-card has-cover ${ready ? "" : "empty"}" href="#/c/${encodeURIComponent(id)}">
+      ${coverHTML(c, s.code, s.name)}
+      <span class="cc-body">
       ${(() => { const sc = c ? myScore(c, r) : null; return sc && sc.complete && sc.midFull ? `<span class="score-pill">${fmtNum(sc.total)}/${fmtNum(sc.midFull)}</span>` : ""; })()}
       <div class="code"><span class="type-tag ${ty}">${TYPE_LABEL[ty]}</span>${esc(s.code)}${s.credit ? " · " + esc(s.credit) + " หน่วยกิต" : ""}</div>
       <div class="name">${esc(s.name || s.code)}</div>
-      <div class="meta">${chips}</div></a>`;
+      <div class="meta">${chips}</div></span></a>`;
   }).join("") || `<div class="notice">ไม่พบรายวิชาที่ลงทะเบียนในภาคเรียนนี้</div>`;
 }
 

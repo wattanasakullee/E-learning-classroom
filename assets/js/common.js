@@ -263,3 +263,29 @@ export async function teacherFirstKey(name) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${CONFIG.keySalt}|TF|${f}`));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
+
+// ปกรายวิชา: รูปที่ครูอัปโหลด (course.cover) หรือปกอัตโนมัติตามกลุ่มสาระ (สีตามรหัสวิชา 2 ตัวแรก)
+const COVER_THEME = {
+  "ทร": ["#0f766e", "#14b8a6", "ทักษะการเรียนรู้"], "พท": ["#4338ca", "#818cf8", "ภาษาไทย"], "พต": ["#6d28d9", "#c084fc", "ภาษาต่างประเทศ"],
+  "พค": ["#1d4ed8", "#60a5fa", "คณิตศาสตร์"], "พว": ["#047857", "#34d399", "วิทยาศาสตร์"], "ทช": ["#3f6212", "#a3e635", "ทักษะการดำเนินชีวิต"],
+  "สค": ["#92400e", "#fbbf24", "สังคมศึกษา"], "อช": ["#c2410c", "#fb923c", "การประกอบอาชีพ"],
+};
+export function coverHTML(course, code, name) {
+  const t = COVER_THEME[String(code || "").slice(0, 2)] || ["#334155", "#94a3b8", "รายวิชา"];
+  if (course?.cover) return `<span class="cc-cover img" aria-hidden="true"><img src="${esc(course.cover)}" alt="" loading="lazy"><i class="spine"></i></span>`;
+  return `<span class="cc-cover auto" aria-hidden="true" style="--c1:${t[0]};--c2:${t[1]}">
+    <i class="spine"></i><b class="cc-area">${esc(t[2])}</b><b class="cc-title">${esc(name || code)}</b><span class="cc-code">${esc(code || "")}</span></span>`;
+}
+// ย่อรูปปกเป็น JPEG 3:4 (240×320) เก็บในเอกสารรายวิชา
+export async function makeCover(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error("เปิดรูปไม่ได้")); i.src = url; });
+    const W = 240, H = 320, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const s = Math.max(W / img.width, H / img.height), w = img.width * s, h = img.height * s;
+    const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+    let q = 0.82, out = cv.toDataURL("image/jpeg", q);
+    while (out.length > 90000 && q > 0.4) { q -= 0.1; out = cv.toDataURL("image/jpeg", q); }
+    return out;
+  } finally { URL.revokeObjectURL(url); }
+}
