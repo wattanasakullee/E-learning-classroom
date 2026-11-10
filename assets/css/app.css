@@ -504,3 +504,26 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .tbl tr.tr-main td { border-bottom: 0; padding-bottom: 4px; padding-top: 12px; }
 .tbl tr.tr-act td { padding-top: 2px; padding-bottom: 12px; }
 .tbl tr.tr-act .row { gap: 6px; flex-wrap: wrap; }
+
+/* ---- หน้าครูผู้สอน: ตารางกระชับ · สลับสีแถวม่วงพาสเทล/ขาว · ปุ่มสีพาสเทล ---- */
+.tbl-teachers { width: 100%; }
+.tbl-teachers th, .tbl-teachers td { white-space: normal; padding-left: 8px; padding-right: 8px; vertical-align: top; }
+.tbl-teachers td:nth-child(2) { white-space: nowrap; }
+.tbl-teachers td:nth-child(3) { font-size: .85rem; white-space: nowrap; }
+.tbl-teachers td:nth-child(4) .chip { margin: 0 2px 4px 0; }
+.tbl-teachers tr.tr-act td { padding-top: 0; }
+.tbl-teachers tr.alt td { background: #eaf7ef; }
+.tbl-teachers tbody tr:not(.alt) td { background: var(--surface); }
+:root[data-theme="dark"] .tbl-teachers tr.alt td { background: #1b3328; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tbl-teachers tr.alt td { background: #1b3328; } }
+.tr-act .btn { border-color: transparent; font-weight: 500; }
+.tr-act [data-rs] { background: #e3effd; color: #1e4f8a; }
+.tr-act [data-ed] { background: #e2f5e8; color: #1d6a44; }
+.tr-act [data-tg] { background: #fdf0dc; color: #8a5a12; }
+.tr-act [data-rm] { background: #fde4e6; color: #a8323e; }
+.tr-act [data-rs]:hover { background: #cfe2fb; } .tr-act [data-ed]:hover { background: #cdeed7; }
+.tr-act [data-tg]:hover { background: #fbe3bd; } .tr-act [data-rm]:hover { background: #fbd0d5; }
+.tbl-teachers tr.tr-main td:nth-child(1) { white-space: nowrap; }
+/* ปุ่มจัดการครู: เส้นขอบสีเหลืองทอง */
+.tr-act .btn { border: 1.5px solid #d4a72c; }
+.tr-act .btn:hover { border-color: #b8860b; }
