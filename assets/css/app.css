@@ -500,3 +500,7 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 /* ครูประจำกลุ่ม (หน้าห้องเรียนของฉัน) — ขนาดเท่าบรรทัดระดับชั้น สีเข้ม */
 .adv-line { color: var(--ink); font-weight: 600; margin-top: 2px; }
 .adv-line:empty { display: none; }
+/* หน้าครูผู้สอน: ปุ่มจัดการอยู่ใต้ข้อมูลของครูแต่ละคน */
+.tbl tr.tr-main td { border-bottom: 0; padding-bottom: 4px; padding-top: 12px; }
+.tbl tr.tr-act td { padding-top: 2px; padding-bottom: 12px; }
+.tbl tr.tr-act .row { gap: 6px; flex-wrap: wrap; }
