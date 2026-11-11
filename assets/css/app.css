@@ -527,3 +527,34 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 /* ปุ่มจัดการครู: เส้นขอบสีเหลืองทอง */
 .tr-act .btn { border: 1.5px solid #d4a72c; }
 .tr-act .btn:hover { border-color: #b8860b; }
+
+/* ---- หน้าครู/ผู้ดูแล: กล่องสถิติไล่เฉดเขียวพาสเทล + ขอบเหลืองอร่าม ---- */
+.admin-layout .stat { background: linear-gradient(120deg, #effbf3 0%, #c9eed6 55%, #9bdbb3 100%); border: 2px solid #f5c400;
+  box-shadow: 0 3px 10px rgba(23, 98, 74, .10); }
+.admin-layout .stat .v { color: #0f4a37; }
+.admin-layout .stat .l { color: #2f6a52; font-weight: 500; }
+:root[data-theme="dark"] .admin-layout .stat { background: linear-gradient(120deg, #17352a, #1f4a39 55%, #2a634b); }
+:root[data-theme="dark"] .admin-layout .stat .v { color: #e3f7ec; } :root[data-theme="dark"] .admin-layout .stat .l { color: #a9d8c0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .admin-layout .stat { background: linear-gradient(120deg, #17352a, #1f4a39 55%, #2a634b); }
+  :root:not([data-theme="light"]) .admin-layout .stat .v { color: #e3f7ec; } :root:not([data-theme="light"]) .admin-layout .stat .l { color: #a9d8c0; } }
+/* ปุ่มบนแถบด้านบน: ขอบเหลืองอร่าม */
+.topbar .btn.ghost { border: 1.5px solid #f5c400; }
+.topbar .btn.ghost:hover { background: rgba(245, 196, 0, .15); }
+/* ปุ่มกลับ (รายวิชาทั้งหมด / ผลคะแนนทุกวิชา): พื้นเขียว ขอบเหลืองทอง ตัวหนังสือขาว · แนวเดียวกับช่องเลือกภาคเรียน */
+.admin-layout main > .crumb, .admin-layout .crumb { margin: 0 0 12px; }
+.back-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 10px; background: var(--brand); color: #fff !important;
+  border: 2px solid #d4a72c; font-weight: 600; font-size: .95rem; text-decoration: none; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.back-pill:hover { filter: brightness(1.1); }
+/* กล่องสถิติ: แต่ละกล่องเฉดเขียวพาสเทลต่างกัน (อ่อน → กลาง → เข้ม) */
+.admin-layout .stat-row .stat:nth-child(4n+1) { background: linear-gradient(120deg, #f4fdf7 0%, #d9f5e3 55%, #b5e8c8 100%); }
+.admin-layout .stat-row .stat:nth-child(4n+2) { background: linear-gradient(120deg, #e6f8ee 0%, #bfebd0 55%, #93d9b0 100%); }
+.admin-layout .stat-row .stat:nth-child(4n+3) { background: linear-gradient(120deg, #d6f3e3 0%, #a6e0c0 55%, #74c99c 100%); }
+.admin-layout .stat-row .stat:nth-child(4n+4) { background: linear-gradient(120deg, #c4ecd6 0%, #8fd5af 55%, #5cba88 100%); }
+.admin-layout .stat-row .stat:nth-child(4n+3) .l, .admin-layout .stat-row .stat:nth-child(4n+4) .l { color: #1f5a42; }
+:root[data-theme="dark"] .admin-layout .stat-row .stat { background: linear-gradient(120deg, #17352a, #1f4a39 55%, #2a634b); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .admin-layout .stat-row .stat { background: linear-gradient(120deg, #17352a, #1f4a39 55%, #2a634b); } }
+/* กล่องสถิติ: ตัวหนังสือสีดำเข้ม */
+.admin-layout .stat .v, .admin-layout .stat .l, .admin-layout .stat-row .stat .l { color: #111 !important; }
+.admin-layout .stat .v span, .admin-layout .stat .v .muted { color: #333 !important; }
+:root[data-theme="dark"] .admin-layout .stat .v, :root[data-theme="dark"] .admin-layout .stat .l { color: #f2f2f2 !important; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .admin-layout .stat .v, :root:not([data-theme="light"]) .admin-layout .stat .l { color: #f2f2f2 !important; } }
