@@ -1148,7 +1148,7 @@ async function profileDetail(sid) {
   if (!st || !canSee(sid)) { box.innerHTML = `<div class="notice bad">ไม่พบนักศึกษา หรือไม่ได้อยู่ในกลุ่มที่คุณดูแล</div>`; return; }
   const [p, subjDoc, results] = await Promise.all([store.get("profiles/" + sid).catch(() => null), store.get("admin/subjects-" + st.l).catch(() => null),
     store.list("results", [["sid", "==", sid]]).catch(() => [])]);
-  const back = `<a class="btn" href="#/profiles">← รายชื่อนักศึกษา</a>`;
+  const back = `<a class="back-pill" href="#/profiles">← รายชื่อนักศึกษา</a>`;
   if (!p) { box.innerHTML = `${back}<div class="notice warn" style="margin-top:12px">ยังไม่มีผลการเรียนของนักศึกษาคนนี้ (ให้ผู้ดูแลนำเข้า ITW51 ภาคเรียนนี้อีกครั้ง)</div>`; return; }
   const subs = subjDoc?.subs || {}, t = transcript(p, subs, subjDoc?.rule);
   const gi = roster.groups?.[st.g];
