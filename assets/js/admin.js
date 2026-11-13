@@ -1,5 +1,5 @@
 import { CONFIG } from "./config.js";
-import { getStore, isDemo } from "./store.js";
+import { getStore, isDemo, clearDataCache } from "./store.js";
 import { DBF } from "./dbf.js";
 import { coverHTML, makeCover, enableFastLoad } from "./common.js";
 enableFastLoad();
@@ -18,10 +18,12 @@ const seesAll = () => isAdm() || !!me?.allGroups; // ผู้ดูแล ห�
 const canSee = sid => seesAll() || myGroups().has(roster?.students?.[sid]?.g);
 const SS = safeStorage("session");
 const semList = () => [...new Set(settings?.semesters || (settings?.semester ? [settings.semester] : []))].sort(semCompare);
-async function useSem(sem) {
+// fast = ใช้รายชื่อที่เครื่องจำไว้ก่อน (เปิดเร็ว) แล้วรับของใหม่ตามมาเงียบ ๆ
+async function useSem(sem, fast) {
   curSem = sem || null;
   if (curSem) SS.set("itw51:adminSem", curSem);
-  roster = curSem ? await store.get("admin/roster-" + semId(curSem)) : null;
+  const path = "admin/roster-" + semId(curSem);
+  roster = !curSem ? null : fast ? await store.getFast(path, v => { if (curSem === sem) roster = v; }) : await store.get(path);
 }
 let cleanup = [];
 const onLeave = f => cleanup.push(f);
@@ -75,7 +77,7 @@ function shell(active, inner) {
 function bindShell() {
   $("#logout").onclick = async () => { await store.admin.signOut(); };
   if ($("#chPw")) $("#chPw").onclick = changePasswordModal;
-  const sel = $("#semSel"); if (sel) sel.onchange = async () => { await useSem(sel.value); route(); };
+  const sel = $("#semSel"); if (sel) sel.onchange = async () => { await useSem(sel.value, true); route(); };
 }
 function needRoster() {
   if (roster) return true;
@@ -229,6 +231,7 @@ async function pageDash() {
   const enrol = cl.reduce((a, c) => a + (c.sids || []).filter(canSee).length, 0);
   const quizDone = results.filter(r => r.quizAt && canSee(r.sid)).length;
   const nStu = Object.keys(roster.students).filter(canSee).length;
+  if (!$("#d")) return;
   if (!isAdm()) {
     $("#d").innerHTML = `
       ${!me?.groups?.length && !me?.allGroups ? `<div class="notice warn" style="margin-bottom:14px">บัญชีนี้ยังไม่ได้กำหนดกลุ่มที่ดูแล — แก้ไขบทเรียนได้ แต่จะยังไม่เห็นรายชื่อนักศึกษา (ติดต่อผู้ดูแลระบบ)</div>` : ""}
@@ -248,6 +251,7 @@ async function pageDash() {
     return;
   }
   const staffList = (await store.list("staff").catch(() => [])).filter(t => t.role === "teacher");
+  if (!$("#d")) return;
   syncFirstNameLogins(staffList).catch(e => console.error("first-name sync", e));
   syncAdvisors(staffList).catch(e => console.error("advisor sync", e));
   const staffAll = staffList.filter(t => t.active !== false);
@@ -1702,7 +1706,7 @@ async function prepareImport(sem, levels, data, groups) {
       const exAll = [...new Set([...[...prevEx].filter(g => !gList.includes(g)), ...excl])].sort();
       ops.push({ type: "set", path: "settings/app", data: { semesters: sems, current, semester: current, excludedGroups: exAll, updatedAt: store.serverTime() }, merge: true });
       await store.batch(ops, (n, t) => { $("#pg").style.width = (n / t * 100) + "%"; $("#pgt").textContent = `บันทึก ${n.toLocaleString()}/${t.toLocaleString()}`; });
-      settings = await store.get("settings/app"); await useSem(sem);
+      await clearDataCache(); settings = await store.get("settings/app"); await useSem(sem);
       toast("นำเข้าข้อมูลเรียบร้อย", "ok");
       $("#pgt").innerHTML = `เสร็จแล้ว — <a href="#/courses">ไปสร้างบทเรียน ${esc(semShort(sem))} →</a>`;
       drawSemMgr(); refreshSide();
@@ -1733,7 +1737,7 @@ function prepareSemesterModal() {
     if (semList().includes(sem)) { toast(semShort(sem) + " มีอยู่แล้ว", "bad"); return; }
     await store.set("admin/roster-" + semId(sem), { sem, students: {}, courses: {}, prepared: true, createdAt: store.serverTime() }, false);
     await store.set("settings/app", { semesters: [...semList(), sem].sort(semCompare), ...(settings?.current ? {} : { current: sem, semester: sem }) }, true);
-    settings = await store.get("settings/app"); await useSem(sem);
+    await clearDataCache(); settings = await store.get("settings/app"); await useSem(sem);
     d.remove(); toast(`สร้าง ${semShort(sem)} แล้ว — เพิ่มรายวิชาได้เลย`, "ok");
     location.hash = "#/courses";
   };
@@ -1871,7 +1875,9 @@ async function pageExport() {
 }
 
 // =================================================================== ROUTER
+let routeSeq = 0;
 async function route() {
+  const seq = ++routeSeq;
   cleanup.forEach(f => { try { f(); } catch {} }); cleanup = [];
   if (!user) { const m = loginMsg; loginMsg = ""; return renderLogin(m); }
   const h = decodeURIComponent(location.hash.replace(/^#\/?/, ""));
@@ -1891,6 +1897,8 @@ async function route() {
     return await pageDash();
   } catch (e) {
     console.error(e);
+    // หน้าถูกเปิดซ้อน (เช่น โทรศัพท์ยืนยันการเข้าระบบซ้ำ) — งานเก่าที่ค้างอยู่ ไม่ต้องแสดงข้อผิดพลาด
+    if (seq !== routeSeq || /null is not an object|Cannot set properties of null/i.test(e.message)) return;
     const m = $("#main") || app;
     m.innerHTML = `<div class="notice bad">เกิดข้อผิดพลาด: ${esc(e.message)}${/permission/i.test(e.message) ? "<br>บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล — ตรวจรายชื่ออีเมลในไฟล์ firestore.rules" : ""}</div>`;
   }
@@ -1902,6 +1910,7 @@ async function route() {
   window.addEventListener("hashchange", route);
   store.admin.onChange(async u => {
     user = u; role = null; me = null;
+    if (!u) clearDataCache();
     if (u) {
       // ผู้ดูแล = อีเมลในรายชื่อ (config.js + firestore.rules) · ครู = มีบัญชีใน staff ที่ยังใช้งานอยู่
       const adminEmail = CONFIG.adminEmails.map(x => x.toLowerCase()).includes(String(u.email).toLowerCase());
@@ -1916,9 +1925,9 @@ async function route() {
     }
     if (u) {
       try {
-        settings = await store.get("settings/app");
+        settings = await store.getFast("settings/app", v => { settings = v; });
         const list = semList(), saved = SS.get("itw51:adminSem");
-        await useSem(list.includes(saved) ? saved : (settings?.current || settings?.semester || list[list.length - 1]));
+        await useSem(list.includes(saved) ? saved : (settings?.current || settings?.semester || list[list.length - 1]), true);
       } catch (e) { settings = null; roster = null; console.error(e); }
     }
     route();
