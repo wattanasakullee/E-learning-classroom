@@ -60,7 +60,7 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 
 .demo-banner { background: var(--accent-soft); color: var(--warn); padding: 8px 16px; font-size: .85rem; text-align: center; display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; align-items: center; }
 .demo-links { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-.demo-links a, .demo-links button { font: inherit; font-size: .82rem; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--warn); color: var(--warn); background: transparent; text-decoration: none; cursor: pointer; }
+.demo-links a, .demo-links button { font: inherit; font-size: .82rem; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--warn); color: var(--warn); background: transparent; text-decoration: none; cursor: pointer; white-space: nowrap; max-width: calc(100vw - 32px); }
 .demo-links a.on { background: var(--warn); color: var(--surface); }
 .demo-acc .btn { white-space: normal; text-align: left; justify-content: flex-start; }
 
@@ -219,7 +219,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: .9rem; }
 .tbl th { background: var(--surface-2); font-weight: 600; font-size: .82rem; color: var(--ink-2); position: sticky; top: 0; }
 .tbl td.n, .tbl th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .tbl tr:last-child td { border-bottom: 0; }
-.tbl tr.click { cursor: pointer; }
+.tbl tr.click { cursor: pointer; white-space: nowrap; max-width: calc(100vw - 32px); }
 .tbl tr.click:hover td { background: var(--surface-2); }
 
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; }
@@ -302,7 +302,7 @@ label.row > span { flex: 1; min-width: 0; }
 .video-box.pseudo-fs { position: fixed; inset: 0; z-index: 200; width: 100vw; height: 100vh; height: 100dvh; max-width: none; aspect-ratio: auto; border-radius: 0; background: #000; }
 .video-box.pseudo-fs .q-overlay { position: absolute; z-index: 5; }
 .video-box.pseudo-fs .fs-exit { display: block; position: absolute; top: calc(env(safe-area-inset-top, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 8px); z-index: 6;
-  font: inherit; font-size: .85rem; background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 99px; padding: 6px 12px; cursor: pointer; }
+  font: inherit; font-size: .85rem; background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.4); border-radius: 99px; padding: 6px 12px; cursor: pointer; white-space: nowrap; max-width: calc(100vw - 32px); }
 body.no-scroll { overflow: hidden; }
 /* ---------- นับเวลาทำแบบทดสอบ ---------- */
 .quiz-timer { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -384,7 +384,7 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 
 /* ปุ่มเลือกแบบกลุ่ม (หน้า กำหนดเวลาสอบ) */
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
-.seg button { font: inherit; padding: 8px 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.seg button { font: inherit; padding: 8px 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; white-space: nowrap; max-width: calc(100vw - 32px); }
 .seg button:not(.on):hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .seg button.on:hover { color: #fff; filter: brightness(1.1); }
 .seg button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
@@ -558,3 +558,7 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 .admin-layout .stat .v span, .admin-layout .stat .v .muted { color: #333 !important; }
 :root[data-theme="dark"] .admin-layout .stat .v, :root[data-theme="dark"] .admin-layout .stat .l { color: #f2f2f2 !important; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .admin-layout .stat .v, :root:not([data-theme="light"]) .admin-layout .stat .l { color: #f2f2f2 !important; } }
+
+/* แถบแจ้งมีเวอร์ชันใหม่ */
+.update-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 900; border: 2px solid #f5c400; background: var(--brand); color: #fff;
+  font: inherit; font-weight: 600; padding: 10px 20px; border-radius: 99px; box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; white-space: nowrap; max-width: calc(100vw - 32px); }
