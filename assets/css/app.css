@@ -562,3 +562,17 @@ body.exam-guard { -webkit-user-select: none; user-select: none; -webkit-touch-ca
 /* แถบแจ้งมีเวอร์ชันใหม่ */
 .update-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 900; border: 2px solid #f5c400; background: var(--brand); color: #fff;
   font: inherit; font-weight: 600; padding: 10px 20px; border-radius: 99px; box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; white-space: nowrap; max-width: calc(100vw - 32px); }
+
+/* ---------- โทรศัพท์: หัวเว็บ 2 แถว และเมนูครบทุกปุ่ม ---------- */
+@media (max-width: 700px) {
+  .topbar .in { flex-wrap: wrap; row-gap: 8px; }
+  .topbar .in > div:nth-child(2) { flex: 1 1 0; min-width: 0; }
+  .topbar .brand-name { font-size: .95rem; }
+  .topbar .spacer { display: none; }
+  .topbar .user { flex: 1 1 100%; max-width: none; text-align: left; order: 5; display: flex; gap: 6px; flex-wrap: wrap; }
+  .topbar .in > .btn { order: 6; }
+  .side { flex-direction: row; flex-wrap: wrap; overflow: visible; gap: 6px; }
+  .side select { flex: 1 1 100%; width: 100%; margin: 0 0 4px; }
+  .side a { flex: 1 1 calc(50% - 6px); padding: 9px 10px; font-size: .9rem; border: 1px solid #d4a72c; background: var(--surface); justify-content: flex-start; white-space: normal; line-height: 1.3; }
+  .side a.on { background: var(--brand-soft); }
+}
