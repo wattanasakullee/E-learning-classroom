@@ -1,5 +1,7 @@
 import { CONFIG } from "./config.js";
-import { getStore, isDemo } from "./store.js";
+import { getStore, isDemo, clearDataCache } from "./store.js";
+import { enableFastLoad } from "./common.js";
+enableFastLoad();
 import { $, $$, esc, loginKey, semLabel, semShort, semId, semCompare, loginTerms, resultId, fmtTime, fmtNum, toast, confirmBox, LEVELS, demoBanner, safeStorage, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, midFulls, finalWindow, finalStatus, fmtThaiDT, examWindow, examStatus, coverHTML } from "./common.js";
 import { createPlayer, runInteractive } from "./player.js";
 
@@ -95,9 +97,13 @@ function pickTerm(list, wanted) {
   return list.find(t => t.id === want) || list[list.length - 1];
 }
 
+// แสดงจากข้อมูลที่จำไว้ในเครื่องทันที · มีข้อมูลใหม่กว่าเมื่อไรจะแสดงใหม่ให้เอง (ครั้งเดียว)
+let refreshTimer = null;
 async function renderClassroom(wanted) {
   stopVideo();
-  try { settings = (await store.get("settings/app")) || settings; } catch {}
+  const here = location.hash;
+  const onFresh = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => { if (location.hash === here && login) renderClassroom(wanted); }, 400); };
+  try { settings = (await store.getFast("settings/app", onFresh)) || settings; } catch {}
   const list = myTerms();
   const term = pickTerm(list, wanted);
   if (term) SS.set("itw51:term", term.id);
@@ -113,11 +119,11 @@ async function renderClassroom(wanted) {
   bindLogout();
   if (!term) { $("#grid").outerHTML = `<div class="notice warn">ยังไม่มีข้อมูลการลงทะเบียนของคุณในระบบ กรุณาติดต่อครู</div>`; return; }
   // ครูประจำกลุ่ม (ตามที่ผู้ดูแลมอบหมายกลุ่มไว้)
-  store.get("pub/advisors").then(d => { const n = d?.map?.[term.grp], el = $("#advLine"); if (n && el) el.textContent = "ครูประจำกลุ่ม " + n; }).catch(() => {});
+  store.getFast("pub/advisors").then(d => { const n = d?.map?.[term.grp], el = $("#advLine"); if (n && el) el.textContent = "ครูประจำกลุ่ม " + n; }).catch(() => {});
   const ids = term.courses || [];
   const [courses, results] = await Promise.all([
-    Promise.all(ids.map(id => store.get("courses/" + id).catch(() => null))),
-    Promise.all(ids.map(id => store.get("results/" + resultId(login.key, id)).catch(() => null))),
+    Promise.all(ids.map(id => store.getFast("courses/" + id, onFresh).catch(() => null))),
+    Promise.all(ids.map(id => store.getFast("results/" + resultId(login.key, id), onFresh).catch(() => null))),
   ]);
   // เรียง: วิชาบังคับก่อน แล้วตามด้วยวิชาเลือก (ภายในกลุ่มเรียงตามรหัสวิชา) พร้อมหัวข้อแต่ละกลุ่ม
   const tyOf = i => courseType(term.subj?.[ids[i]]?.code || courses[i]?.code, courses[i]?.type);
@@ -538,7 +544,7 @@ function stopVideo() {
 }
 function bindLogout() {
   const b = $("#logout");
-  if (b) b.onclick = () => { setSession(null); login = null; location.hash = ""; renderLogin(); };
+  if (b) b.onclick = () => { setSession(null); login = null; clearDataCache(); location.hash = ""; renderLogin(); };
 }
 
 async function route() {

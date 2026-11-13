@@ -289,3 +289,18 @@ export async function makeCover(file) {
     return out;
   } finally { URL.revokeObjectURL(url); }
 }
+
+// จำไฟล์ของเว็บไว้ในเครื่อง (sw.js) · มีเวอร์ชันใหม่ขึ้นแถบให้แตะโหลดใหม่
+export function enableFastLoad() {
+  if (!("serviceWorker" in navigator) || !(location.protocol === "https:" || location.hostname === "localhost")) return;
+  navigator.serviceWorker.register(new URL("sw.js", location.href).pathname.replace(/[^/]*sw\.js$/, "sw.js")).catch(() => {});
+  let shown = false;
+  navigator.serviceWorker.addEventListener("message", e => {
+    if (e.data?.type !== "itw51-updated" || shown) return;
+    shown = true;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "update-bar"; b.textContent = "✨ มีเวอร์ชันใหม่ · แตะเพื่อโหลด";
+    b.onclick = () => location.reload();
+    document.body.appendChild(b);
+  });
+}

@@ -194,6 +194,29 @@ async function firebaseStore(opts = {}) {
   };
 }
 
+// ---------------- จำข้อมูลไว้ในเครื่อง (โหลดเร็ว) ----------------
+// อ่านจากที่จำไว้ก่อน (แสดงทันที) แล้วดึงข้อมูลล่าสุดตามมา · ถ้าต่างจากเดิมเรียก onFresh ให้แสดงใหม่
+const DCACHE = "itw51-data-v1";
+const dkey = p => new Request(new URL("__data/" + encodeURIComponent(p), location.href).href);
+const dcache = {
+  async get(p) { try { const c = await caches.open(DCACHE); const r = await c.match(dkey(p)); return r ? await r.json() : undefined; } catch { return undefined; } },
+  async set(p, v) { try { const c = await caches.open(DCACHE); await c.put(dkey(p), new Response(JSON.stringify(v ?? null), { headers: { "content-type": "application/json" } })); } catch {} },
+};
+export async function clearDataCache() { try { await caches.delete(DCACHE); } catch {} }
+function addFast(s) {
+  s.getFast = async (path, onFresh) => {
+    const cached = typeof caches !== "undefined" ? await dcache.get(path) : undefined;
+    const fresh = s.get(path).then(async v => {
+      await dcache.set(path, v);
+      if (cached !== undefined && JSON.stringify(v) !== JSON.stringify(cached)) onFresh?.(v);
+      return v;
+    });
+    if (cached !== undefined) { fresh.catch(() => {}); return cached; }
+    return fresh;
+  };
+  return s;
+}
+
 let _store;
 export async function getStore(opts = {}) {
   if (!_store) {
@@ -203,5 +226,5 @@ export async function getStore(opts = {}) {
       try { const { seedDemo } = await import("./demo-seed.js"); await seedDemo(_store); } catch (e) { console.warn("seed", e); }
     } else _store = await firebaseStore(opts);
   }
-  return _store;
+  return addFast(_store);
 }

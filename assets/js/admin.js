@@ -1,7 +1,8 @@
 import { CONFIG } from "./config.js";
 import { getStore, isDemo } from "./store.js";
 import { DBF } from "./dbf.js";
-import { coverHTML, makeCover } from "./common.js";
+import { coverHTML, makeCover, enableFastLoad } from "./common.js";
+enableFastLoad();
 import { $, $$, esc, loginKey, semLabel, courseId, resultId, fmtTime, parseTime, fmtNum, uid, computeScore, toast, confirmBox, download, toCSV, LEVELS, demoBanner, normId, messageBox, inputBox, semShort, semId, semCompare, loginTerms, safeStorage, normName, normPhone, teacherKey, TEACHER_DOMAIN, maskEmail, isRealEmail, nameSimilarity, joinThaiName, firstName, teacherFirstKey, courseType, TYPE_LABEL, finalFullOf, hasFinalExam, DEFAULT_FINAL_FULL, midFulls, finalWindow, finalStatus, fmtThaiDT, TH_MONTHS, examWindow, examStatus } from "./common.js";
 import { transcript, summaryOf, subjectOf, semGpa, gradeInfo, VIRTUE, semKey } from "./transcript.js";
 import { createPlayer } from "./player.js";
