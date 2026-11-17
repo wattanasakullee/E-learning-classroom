@@ -1116,7 +1116,7 @@ async function pageProfiles(sidArg) {
   const ginfo = roster.groups || {};
   const F = { g: SS.get("pf:g") || "", q: "", st: "" };
   $("#pf").innerHTML = `<h1>ข้อมูลนักศึกษา</h1>
-    <p class="muted">${esc(semLabel(roster.sem))} · ข้อมูลจาก ITW51 (นำเข้าเมื่อ ${doc.at ? new Date(doc.at).toLocaleDateString("th-TH", { dateStyle: "medium" }) : "-"}) · ${seesAll() ? "เห็นทุกกลุ่ม" : "เฉพาะกลุ่มที่คุณดูแล"} · คลิกชื่อเพื่อดูผลการเรียนทุกภาคเรียน</p>
+    <p class="muted">${esc(semLabel(roster.sem))}${isAdm() ? ` · ข้อมูลจาก ITW51 (นำเข้าเมื่อ ${doc.at ? new Date(doc.at).toLocaleDateString("th-TH", { dateStyle: "medium" }) : "-"})` : ""} · ${seesAll() ? "เห็นทุกกลุ่ม" : "เฉพาะกลุ่มที่คุณดูแล"} · คลิกชื่อเพื่อดูผลการเรียนทุกภาคเรียน</p>
     <div class="row" style="margin-bottom:12px">
       <select id="pg" style="max-width:340px">${groupsHere.length > 1 ? `<option value="">ทุกกลุ่ม (${all.length} คน)</option>` : ""}${groupsHere.map(g => `<option value="${esc(g)}" ${F.g === g ? "selected" : ""}>กลุ่ม ${esc(g)}${ginfo[g]?.name ? " · " + esc(ginfo[g].name) : ""} (${all.filter(x => x.g === g).length} คน)</option>`).join("")}</select>
       <select id="pst" style="max-width:240px"><option value="">ทุกสถานะ</option><option value="ok">ครบเกณฑ์จบ</option><option value="no">ยังไม่ครบเกณฑ์</option></select>
